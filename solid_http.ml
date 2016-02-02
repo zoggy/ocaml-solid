@@ -1,10 +1,27 @@
 
 module Ldp = Rdf_ldp
 module Xhr = XmlHttpRequest
-open Lwt.Infix
+open Lwt.Infix;;
+
+type error =
+  | Post_error of int * Iri.t
+  | Get_error of int * Iri.t
+
+exception Error of error
+let error e = Lwt.fail (Error e)
+
+let string_of_error = function
+  Post_error (code, iri) ->
+    Printf.sprintf "POST error (%d, %s)"
+      code (Iri.to_string iri)
+| Get_error (code, iri) ->
+    Printf.sprintf "GET error (%d, %s)"
+      code (Iri.to_string iri)
 
 let map_opt f = function None -> None | Some x -> Some (f x)
 let do_opt f = function None -> () | Some x -> f x
+
+let mime_turtle = "text/turtle"
 
 (*c==v=[String.split_string]=1.2====*)
 let split_string ?(keep_empty=false) s chars =
@@ -122,7 +139,7 @@ let head url =
     ~with_credentials: true
     url >|= response_metadata
 
-let get ?accept url =
+let get ?accept iri =
   let hfields =
     match accept with
       None -> []
@@ -131,25 +148,50 @@ let get ?accept url =
   Xhr.perform_raw_url
     ~headers: hfields
     ~with_credentials: true
-    url >>= fun xhr ->
+    (Iri.to_uri iri) >>= fun xhr ->
   let content_type = match xhr.Xhr.headers "Content-type" with
       None -> ""
     | Some str -> str
   in
   Lwt.return (content_type, xhr.Xhr.content)
 
-let get_graph ?g url =
+let get_graph ?g iri =
   let g =
     match g with
-      None -> Rdf_graph.open_graph (Iri.of_string url)
+      None -> Rdf_graph.open_graph iri
     | Some g -> g
   in
-  get ~accept: "text/turtle" url >>= fun (_, str) ->
+  get ~accept: mime_turtle iri >>= fun (_, str) ->
     dbg str;
     Rdf_ttl.from_string g str;
     Lwt.return g
 
-let post ?data ?slug ?(container=false) ~parent = assert false
+let post ?data ?(mime=mime_turtle) ?slug ?(container=false) parent =
+  let (res_type, content_type) =
+     if container then
+       (Rdf_ldp.ldp_BasicContainer, mime_turtle)
+     else
+       (Rdf_ldp.ldp_Resource, mime)
+  in
+  let hfields =
+    ["Link", Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string res_type)]
+  in
+  let hfields =
+    match slug with
+      None | Some "" -> hfields
+    | Some str -> ("Slug", str) :: hfields
+  in
+  let post_args = map_opt (function s -> ["", `String (Js.string s)]) data in
+  Xhr.perform_raw_url
+    ~content_type
+    ~headers: hfields
+    ?post_args
+    ~override_method: `POST
+    ~with_credentials: true
+    (Iri.to_uri parent) >>= fun xhr ->
+    match xhr.Xhr.code with
+    | 200 | 201 -> Lwt.return (response_metadata xhr)
+    | n -> error (Post_error (n, parent))
 
 let login ?url () =
   let url =
@@ -160,7 +202,7 @@ let login ?url () =
         let o = Js.to_string (Dom_html.location_origin_safe loc) in
         let p = Js.to_string (loc##pathname) in
         o ^ p
-    | Some url -> url
+    | Some url -> Iri.to_uri url
   in
   dbg (Printf.sprintf "login, url=%s" url);
   head url >>= fun meta -> Lwt.return meta.user

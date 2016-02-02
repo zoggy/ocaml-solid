@@ -31,7 +31,7 @@ val methods_of_string :
 val response_metadata : string Xhr.generic_http_frame -> meta
 
 val head : string -> meta Lwt.t
-val get : ?accept:string -> string -> (string * string) Lwt.t
-val get_graph : ?g:Rdf_graph.graph -> string -> Rdf_graph.graph Lwt.t
-val post : ?data:'a -> ?slug:'b -> ?container:bool -> parent:'c -> 'd
-val login : ?url: string -> unit -> string option Lwt.t
+val get : ?accept:string -> Iri.t -> (string * string) Lwt.t
+val get_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
+val post : ?data:string -> ?mime:string -> ?slug:string -> ?container:bool -> Iri.t -> meta Lwt.t
+val login : ?url: Iri.t -> unit -> string option Lwt.t
