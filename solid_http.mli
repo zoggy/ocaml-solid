@@ -1,5 +1,16 @@
 module Ldp = Rdf_ldp
 module Xhr = XmlHttpRequest
+
+
+type error =
+  | Post_error of int * Iri.t
+  | Get_error of int * Iri.t
+  | Put_error of int * Iri.t
+
+exception Error of error
+
+val string_of_error : error -> string
+
 val map_opt : ('a -> 'b) -> 'a option -> 'b option
 val do_opt : ('a -> unit) -> 'a option -> unit
 val split_string : ?keep_empty:bool -> string -> char list -> string list
@@ -33,5 +44,10 @@ val response_metadata : string Xhr.generic_http_frame -> meta
 val head : string -> meta Lwt.t
 val get : ?accept:string -> Iri.t -> (string * string) Lwt.t
 val get_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
-val post : ?data:string -> ?mime:string -> ?slug:string -> ?container:bool -> Iri.t -> meta Lwt.t
+
+val post_container : ?slug:string -> Iri.t -> meta Lwt.t
+val post_resource : ?data:Rdf_graph.graph -> ?slug:string -> Iri.t -> meta Lwt.t
+val post_non_rdf : ?data:string -> ?mime:string -> Iri.t -> meta Lwt.t
+
+val put : ?data:string -> ?mime:string -> Iri.t -> meta Lwt.t
 val login : ?url: Iri.t -> unit -> string option Lwt.t

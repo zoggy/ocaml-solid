@@ -6,6 +6,7 @@ open Lwt.Infix;;
 type error =
   | Post_error of int * Iri.t
   | Get_error of int * Iri.t
+  | Put_error of int * Iri.t
 
 exception Error of error
 let error e = Lwt.fail (Error e)
@@ -13,6 +14,9 @@ let error e = Lwt.fail (Error e)
 let string_of_error = function
   Post_error (code, iri) ->
     Printf.sprintf "POST error (%d, %s)"
+      code (Iri.to_string iri)
+| Put_error (code, iri) ->
+    Printf.sprintf "PUT error (%d, %s)"
       code (Iri.to_string iri)
 | Get_error (code, iri) ->
     Printf.sprintf "GET error (%d, %s)"
@@ -165,15 +169,9 @@ let get_graph ?g iri =
     Rdf_ttl.from_string g str;
     Lwt.return g
 
-let post ?data ?(mime=mime_turtle) ?slug ?(container=false) parent =
-  let (res_type, content_type) =
-     if container then
-       (Rdf_ldp.ldp_BasicContainer, mime_turtle)
-     else
-       (Rdf_ldp.ldp_Resource, mime)
-  in
+let post ?data ?(mime=mime_turtle) ?slug ~typ ?(container=false) parent =
   let hfields =
-    ["Link", Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string res_type)]
+    ["Link", Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string typ)]
   in
   let hfields =
     match slug with
@@ -182,7 +180,7 @@ let post ?data ?(mime=mime_turtle) ?slug ?(container=false) parent =
   in
   let form_arg = map_opt (fun s -> `RawData (Js.string s)) data in
   Xhr.perform_raw_url
-    ~content_type
+    ~content_type: mime
     ~headers: hfields
     ?form_arg
     ~override_method: `POST
@@ -191,6 +189,29 @@ let post ?data ?(mime=mime_turtle) ?slug ?(container=false) parent =
     match xhr.Xhr.code with
     | 200 | 201 -> Lwt.return (response_metadata xhr)
     | n -> error (Post_error (n, parent))
+
+let post_container ?slug iri =
+  post ?slug ~typ: Rdf_ldp.ldp_BasicContainer iri
+
+let post_resource ?data ?slug iri =
+  let data = map_opt Rdf_ttl.to_string data in
+  post ?data ?slug ~typ: Rdf_ldp.ldp_Resource iri
+
+let put ?data ?(mime=mime_turtle) iri =
+  let form_arg = map_opt (fun s -> `RawData (Js.string s)) data in
+  Xhr.perform_raw_url
+    ~content_type: mime
+    ?form_arg
+    ~override_method: `PUT
+    ~with_credentials: true
+    (Iri.to_uri iri) >>= fun xhr ->
+    match xhr.Xhr.code with
+    | 200 | 201 -> Lwt.return (response_metadata xhr)
+    | n -> error (Put_error (n, iri))
+
+
+let post_non_rdf ?data ?mime iri =
+  put ?data ?mime (*~typ: Rdf_ldp.ldp_NonRDFSource*) iri
 
 let login ?url () =
   let url =
