@@ -59,17 +59,6 @@ type meth = [
   | `POST
   | `PUT ]
 
-type meta =
-  { url : string ;
-    acl : Iri.t option ;
-    meta: Iri.t option ;
-    user: string option ;
-    websocket: string option ;
-    editable : meth list ;
-    exists: bool ;
-    xhr: string Xhr.generic_http_frame ;
-  }
-
 let meth_of_string acc = function
   "DELETE" -> `DELETE :: acc
 | "GET" -> `GET :: acc
@@ -89,6 +78,20 @@ let string_of_meth = function
 | `POST -> "POST"
 | `PUT -> "PUT"
 
+let methods_of_string str =
+  List.fold_left meth_of_string [] (split_string str [',';' ';'\t'])
+
+type meta =
+  { url : string ;
+    acl : Iri.t option ;
+    meta: Iri.t option ;
+    user: string option ;
+    websocket: string option ;
+    editable : meth list ;
+    exists: bool ;
+    xhr: string Xhr.generic_http_frame ;
+  }
+
 let dbg s = Firebug.console##log (Js.string s)
 let dbg_js js = Firebug.console##log(js)
 let dbg_ fmt = Printf.ksprintf dbg fmt
@@ -100,10 +103,6 @@ let dbg_meta m =
   do_opt (dbg_ "meta.meta=%s") (map_opt Iri.to_string m.meta);
   do_opt (dbg_ "meta.user=%s") m.user;
   do_opt (dbg_ "meta.websocket=%s") m.websocket
-
-
-let methods_of_string str =
-  List.fold_left meth_of_string [] (split_string str [',';' ';'\t'])
 
 let response_metadata (resp : string Xhr.generic_http_frame) =
   let links = match resp.Xhr.headers "Link" with
@@ -181,11 +180,11 @@ let post ?data ?(mime=mime_turtle) ?slug ?(container=false) parent =
       None | Some "" -> hfields
     | Some str -> ("Slug", str) :: hfields
   in
-  let post_args = map_opt (function s -> ["", `String (Js.string s)]) data in
+  let form_arg = map_opt (fun s -> `RawData (Js.string s)) data in
   Xhr.perform_raw_url
     ~content_type
     ~headers: hfields
-    ?post_args
+    ?form_arg
     ~override_method: `POST
     ~with_credentials: true
     (Iri.to_uri parent) >>= fun xhr ->
