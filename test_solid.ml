@@ -18,7 +18,7 @@ let doc_css = {|
        color: green;
      } |}
 
-let doc_html css = {|
+let doc_html = {|
   <html>
     <head>
       <title>Hello HTML document !</title>
@@ -52,6 +52,11 @@ let t =
         dbg (Printf.sprintf "Put ok");
         let%lwt meta = head (Iri.to_uri iri) in
         dbg_meta meta ;
+        let ins = Rdf_graph.open_graph iri in
+        ins.Rdf_graph.add_triple
+          ~sub: (Rdf_term.Iri iri) ~pred: Rdf_dc.dc_title
+          ~obj: (Rdf_term.term_of_literal_string "Hello title 2") ;
+        let%lwt () = patch ~ins iri_meta in
         Lwt.return_unit
   with
     Solid_http.Error e ->

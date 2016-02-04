@@ -213,6 +213,43 @@ let put ?data ?(mime=mime_turtle) iri =
 let post_non_rdf ?data ?mime iri =
   put ?data ?mime (*~typ: Rdf_ldp.ldp_NonRDFSource*) iri
 
+let patch ?del ?ins iri =
+  let b = Buffer.create 256 in
+  (match del with
+     None -> ()
+   | Some g -> 
+       Printf.bprintf b "DELETE DATA { %s }\n"
+           (Rdf_ttl.to_string g)
+  );
+  (match ins with
+     None -> ()
+   | Some g -> 
+       Printf.bprintf b "INSERT DATA { %s }\n"
+           (Rdf_ttl.to_string g)
+  );
+  match Buffer.contents b with
+    "" -> Lwt.return_unit
+  | query ->
+      let form_arg = `RawData (Js.string query) in
+      Xhr.perform_raw_url
+        ~content_type: "application/sparql-update"
+        ~form_arg
+        ~override_method: `PATCH
+        ~with_credentials: true
+        (Iri.to_uri iri) >>= fun xhr ->
+          match xhr.Xhr.code with
+          | 200 | 201 -> Lwt.return_unit
+          | n -> error (Put_error (n, iri))
+
+let delete iri =
+  Xhr.perform_raw_url
+    ~override_method: `DELETE
+    ~with_credentials: true
+    (Iri.to_uri iri) >>= fun xhr ->
+    match xhr.Xhr.code with
+    | 200 | 201 -> Lwt.return_unit
+    | n -> error (Put_error (n, iri))
+
 let login ?url () =
   let url =
     match url with

@@ -50,4 +50,8 @@ val post_resource : ?data:Rdf_graph.graph -> ?slug:string -> Iri.t -> meta Lwt.t
 val post_non_rdf : ?data:string -> ?mime:string -> Iri.t -> meta Lwt.t
 
 val put : ?data:string -> ?mime:string -> Iri.t -> meta Lwt.t
+
+val patch : ?del: Rdf_graph.graph -> ?ins: Rdf_graph.graph -> Iri.t -> unit Lwt.t
+val delete : Iri.t -> unit Lwt.t
+
 val login : ?url: Iri.t -> unit -> string option Lwt.t
