@@ -18,18 +18,18 @@ let doc_css = {|
        color: green;
      } |}
 
-let doc_html = {|
-  <html>
+let doc_html css = Printf.sprintf
+  "<html>
     <head>
       <title>Hello HTML document !</title>
+      <link rel=\"stylesheet\" type=\"text/css\" href=\"%s\"/>
     </head>
     <body>
     <h1>Hello HTML document!</h1>
     <p>bla bla bla</p>
     <p>bla bla bla</p>
     </body>
-  </html>
-|}
+  </html>" (Iri.to_uri css)
 
 let t =
   try%lwt
@@ -39,15 +39,20 @@ let t =
       (Iri.of_string "https://zoggy.databox.me/Preferences/prefs.ttl")
     in
     dbg (Rdf_ttl.to_string g) ;
-    let%lwt meta = post_non_rdf ~data: doc_html ~mime: "text/html"
+    let%lwt meta_css = post_non_rdf ~data: doc_css ~mime: "text/css"
+      (Iri.of_string "https://zoggy.databox.me/Public/style.css")
+    in
+    let%lwt meta = post_non_rdf
+      ~data: (doc_html meta_css.url)
+      ~mime: "text/html"
       (Iri.of_string "https://zoggy.databox.me/Public/doc.html")
     in
-    dbg (Printf.sprintf "Post meta.url=%s" meta.url);
+    dbg (Printf.sprintf "Post meta.url=%s" (Iri.to_string meta.url));
     match meta.meta with
       None -> dbg "No meta URL"; Lwt.return_unit
     | Some iri_meta ->
         dbg (Printf.sprintf "Meta IRI=%s" (Iri.to_string iri_meta));
-        let iri = Iri.of_string meta.url in
+        let iri = meta.url in
         let%lwt meta = put ~data: (doc_meta iri) iri_meta in
         dbg (Printf.sprintf "Put ok");
         let%lwt meta = head (Iri.to_uri iri) in

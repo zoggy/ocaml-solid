@@ -86,7 +86,7 @@ let methods_of_string str =
   List.fold_left meth_of_string [] (split_string str [',';' ';'\t'])
 
 type meta =
-  { url : string ;
+  { url : Iri.t ;
     acl : Iri.t option ;
     meta: Iri.t option ;
     user: string option ;
@@ -102,7 +102,7 @@ let dbg_ fmt = Printf.ksprintf dbg fmt
 let opt_s = function None -> "" | Some s -> s
 
 let dbg_meta m =
-  dbg_ "meta.url=%s" m.url ;
+  dbg_ "meta.url=%s" (Iri.to_string m.url) ;
   do_opt (dbg_ "meta.acl=%s") (map_opt Iri.to_string m.acl);
   do_opt (dbg_ "meta.meta=%s") (map_opt Iri.to_string m.meta);
   do_opt (dbg_ "meta.user=%s") m.user;
@@ -132,7 +132,8 @@ let response_metadata (resp : string Xhr.generic_http_frame) =
       None -> []
     | Some str -> methods_of_string str
   in
-  { url ; acl ; meta ; user ;
+  { url = Iri.of_string url ;
+    acl ; meta ; user ;
     websocket ; editable ; exists ; xhr = resp }
 
 let head url =

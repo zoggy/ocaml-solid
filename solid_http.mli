@@ -17,7 +17,7 @@ val split_string : ?keep_empty:bool -> string -> char list -> string list
 val get_link : ('a * 'b) list -> 'a -> 'b option
 type meth = [ `DELETE | `GET | `HEAD | `OPTIONS | `PATCH | `POST | `PUT ]
 type meta = {
-  url : string;
+  url : Iri.t;
   acl : Iri.t option;
   meta : Iri.t option;
   user : string option;
