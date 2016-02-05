@@ -1,5 +1,6 @@
 
 module Ldp = Rdf_ldp
+open Ldp_types
 module Xhr = XmlHttpRequest
 open Lwt.Infix;;
 
@@ -27,63 +28,11 @@ let do_opt f = function None -> () | Some x -> f x
 
 let mime_turtle = "text/turtle"
 
-(*c==v=[String.split_string]=1.2====*)
-let split_string ?(keep_empty=false) s chars =
-  let len = String.length s in
-  let rec iter acc pos =
-    if pos >= len then
-      match acc with
-        "" -> if keep_empty then [""] else []
-      | _ -> [acc]
-    else
-      if List.mem s.[pos] chars then
-        match acc with
-          "" ->
-            if keep_empty then
-              "" :: iter "" (pos + 1)
-            else
-              iter "" (pos + 1)
-        | _ -> acc :: (iter "" (pos + 1))
-      else
-        iter (Printf.sprintf "%s%c" acc s.[pos]) (pos + 1)
-  in
-  iter "" 0
-(*/c==v=[String.split_string]=1.2====*)
-
 let get_link links rel =
   try Some (List.assoc rel links)
   with Not_found -> None
 
-type meth = [
-  | `DELETE
-  | `GET
-  | `HEAD
-  | `OPTIONS
-  | `PATCH
-  | `POST
-  | `PUT ]
 
-let meth_of_string acc = function
-  "DELETE" -> `DELETE :: acc
-| "GET" -> `GET :: acc
-| "HEAD" -> `HEAD :: acc
-| "OPTIONS" -> `OPTIONS :: acc
-| "PATCH" -> `PATCH :: acc
-| "POST" -> `POST :: acc
-| "PUT" -> `PUT :: acc
-| _ -> acc
-
-let string_of_meth = function
-  `DELETE -> "DELETE"
-| `GET -> "GET"
-| `HEAD -> "HEAD"
-| `OPTIONS -> "OPTIONS"
-| `PATCH -> "PATCH"
-| `POST -> "POST"
-| `PUT -> "PUT"
-
-let methods_of_string str =
-  List.fold_left meth_of_string [] (split_string str [',';' ';'\t'])
 
 type meta =
   { url : Iri.t ;
@@ -192,11 +141,11 @@ let post ?data ?(mime=mime_turtle) ?slug ~typ ?(container=false) parent =
     | n -> error (Post_error (n, parent))
 
 let post_container ?slug iri =
-  post ?slug ~typ: Rdf_ldp.ldp_BasicContainer iri
+  post ?slug ~typ: Rdf_ldp.c_BasicContainer iri
 
 let post_resource ?data ?slug iri =
   let data = map_opt Rdf_ttl.to_string data in
-  post ?data ?slug ~typ: Rdf_ldp.ldp_Resource iri
+  post ?data ?slug ~typ: Rdf_ldp.c_Resource iri
 
 let put ?data ?(mime=mime_turtle) iri =
   let form_arg = map_opt (fun s -> `RawData (Js.string s)) data in
@@ -256,9 +205,9 @@ let login ?url () =
     match url with
       None ->
         let w = Dom_html.window in
-        let loc = w##location in
+        let loc = w##.location in
         let o = Js.to_string (Dom_html.location_origin_safe loc) in
-        let p = Js.to_string (loc##pathname) in
+        let p = Js.to_string (loc##.pathname) in
         o ^ p
     | Some url -> Iri.to_uri url
   in

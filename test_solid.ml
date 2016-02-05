@@ -3,7 +3,7 @@
 let id_iri = Iri.of_string "https://zoggy.databox.me/profile/card#me"
 (*let id_iri = "https://databox.me/"*)
 
-open Solid_http
+open Ldp_http
 
 let doc_meta url =
   let g = Rdf_graph.open_graph url in
@@ -59,13 +59,13 @@ let t =
         dbg_meta meta ;
         let ins = Rdf_graph.open_graph iri in
         ins.Rdf_graph.add_triple
-          ~sub: (Rdf_term.Iri iri) ~pred: Rdf_dc.dc_title
+          ~sub: (Rdf_term.Iri iri) ~pred: Rdf_dc.title
           ~obj: (Rdf_term.term_of_literal_string "Hello title 2") ;
         let%lwt () = patch ~ins iri_meta in
         Lwt.return_unit
   with
-    Solid_http.Error e ->
-      dbg (Printf.sprintf "Error: %s" (string_of_error e));
+    Ldp_types.Error e ->
+      dbg (Printf.sprintf "Error: %s" (Ldp_types.string_of_error e));
       Lwt.return_unit
   | Iri.Error e ->
       dbg (Printf.sprintf "Error: %s" (Iri.string_of_error e));

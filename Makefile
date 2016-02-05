@@ -27,8 +27,8 @@
 VERSION=0.1.0
 
 OCAMLFIND=ocamlfind
-PACKAGES=js_of_ocaml.syntax,rdf.js,lwt
-COMPFLAGS=-annot -safe-string -g -syntax camlp4o
+PACKAGES=js_of_ocaml.ppx,rdf.js,lwt.ppx
+COMPFLAGS=-annot -safe-string -g
 OCAMLPP=
 
 RM=rm -f
@@ -42,7 +42,9 @@ LIB_BYTE=$(LIB:.cmxa=.cma)
 LIB_CMI=$(LIB:.cmxa=.cmi)
 
 LIB_CMXFILES= \
-	solid_http.cmx
+	ldp_types.cmx \
+	ldp_http.cmx \
+	solid_profile.cmx
 
 LIB_CMOFILES=$(LIB_CMXFILES:.cmx=.cmo)
 LIB_CMIFILES=$(LIB_CMXFILES:.cmx=.cmi)
