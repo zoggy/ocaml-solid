@@ -218,13 +218,13 @@ let patch ?del ?ins iri =
   let b = Buffer.create 256 in
   (match del with
      None -> ()
-   | Some g -> 
+   | Some g ->
        Printf.bprintf b "DELETE DATA { %s }\n"
            (Rdf_ttl.to_string g)
   );
   (match ins with
      None -> ()
-   | Some g -> 
+   | Some g ->
        Printf.bprintf b "INSERT DATA { %s }\n"
            (Rdf_ttl.to_string g)
   );
