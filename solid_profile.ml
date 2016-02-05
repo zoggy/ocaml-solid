@@ -10,15 +10,14 @@ type profile = G.graph
 type workspace = {
   ws_title : string ;
   ws_iri : Iri.t ;
-  ws_graph : G.graph ;
+  ws_triples : Rdf_term.triple list ;
 }
 
 let get_profile iri =
   H.get_graph iri >>= fun g ->
-  let iri = Iri.with_fragment iri None in
+(*  let iri = Iri.with_fragment iri None in*)
   match g.G.objects_of
-    ~sub: (Rdf_term.Iri iri)
-      ~pred: Foaf.primaryTopic
+    ~sub: (Rdf_term.Iri iri) ~pred: Foaf.primaryTopic
   with
     [] ->
       Ldp_types.fail (Ldp_types.Missing_pred (iri, Foaf.primaryTopic))
@@ -41,4 +40,24 @@ let get_profile iri =
       List.iter (Rdf_graph.merge g) graphs ;
       Lwt.return g
 
-      
+let get_workspaces ?profile webid =
+  let%lwt profile = match profile with
+      None -> get_profile webid
+    | Some p -> Lwt.return p
+  in
+  let ws = G.iri_objects_of profile
+    ~sub:(Rdf_term.Iri webid) ~pred: Rdf_pim.workspace
+  in
+  let f acc ws =
+    match profile.G.objects_of
+      ~sub: (Rdf_term.Iri ws) ~pred: Rdf_dc.title
+    with
+      (Rdf_term.Literal lit) :: _ ->
+        { ws_title = lit.Rdf_term.lit_value ;
+          ws_iri = ws ;
+          ws_triples = profile.G.find ~sub: (Rdf_term.Iri ws) () ;
+        } :: acc
+    | _ ->
+       acc
+  in
+  Lwt.return (List.fold_left f [] ws)

@@ -62,6 +62,14 @@ let t =
           ~sub: (Rdf_term.Iri iri) ~pred: Rdf_dc.title
           ~obj: (Rdf_term.term_of_literal_string "Hello title 2") ;
         let%lwt () = patch ~ins iri_meta in
+        let%lwt ws = Solid_profile.get_workspaces id_iri in
+        List.iter
+          (fun ws ->
+            dbg (Printf.sprintf "workspace: title=%s, iri=%s"
+              ws.Solid_profile.ws_title
+              (Iri.to_string ws.Solid_profile.ws_iri))
+          )
+          ws;
         Lwt.return_unit
   with
     Ldp_types.Error e ->
