@@ -3,6 +3,7 @@
 let id_iri = Iri.of_string "https://zoggy.databox.me/profile/card#me"
 (*let id_iri = "https://databox.me/"*)
 
+open Ldp_types
 open Ldp_http
 
 let doc_meta url =
@@ -35,7 +36,7 @@ let t =
   try%lwt
     let%lwt user = login ~url: id_iri () in
     dbg (Printf.sprintf "User=%s" (match user with None -> "" | Some u -> u));
-    let%lwt g = get_graph
+    let%lwt g = get_rdf
       (Iri.of_string "https://zoggy.databox.me/Preferences/prefs.ttl")
     in
     dbg (Rdf_ttl.to_string g) ;
@@ -43,16 +44,16 @@ let t =
       (Iri.of_string "https://zoggy.databox.me/Public/style.css")
     in
     let%lwt meta = post_non_rdf
-      ~data: (doc_html meta_css.url)
+      ~data: (doc_html meta_css.iri)
       ~mime: "text/html"
       (Iri.of_string "https://zoggy.databox.me/Public/doc.html")
     in
-    dbg (Printf.sprintf "Post meta.url=%s" (Iri.to_string meta.url));
+    dbg (Printf.sprintf "Post meta.iri=%s" (Iri.to_string meta.iri));
     match meta.meta with
       None -> dbg "No meta URL"; Lwt.return_unit
     | Some iri_meta ->
         dbg (Printf.sprintf "Meta IRI=%s" (Iri.to_string iri_meta));
-        let iri = meta.url in
+        let iri = meta.iri in
         let%lwt meta = put ~data: (doc_meta iri) iri_meta in
         dbg (Printf.sprintf "Put ok");
         let%lwt meta = head (Iri.to_uri iri) in

@@ -8,19 +8,23 @@ type error =
   | Post_error of int * Iri.t
   | Get_error of int * Iri.t
   | Put_error of int * Iri.t
+  | Patch_error of int * Iri.t
 
 exception Error of error
 let error e = Lwt.fail (Error e)
 
 let string_of_error = function
-  Post_error (code, iri) ->
+| Post_error (code, iri) ->
     Printf.sprintf "POST error (%d, %s)"
+      code (Iri.to_string iri)
+| Get_error (code, iri) ->
+    Printf.sprintf "GET error (%d, %s)"
       code (Iri.to_string iri)
 | Put_error (code, iri) ->
     Printf.sprintf "PUT error (%d, %s)"
       code (Iri.to_string iri)
-| Get_error (code, iri) ->
-    Printf.sprintf "GET error (%d, %s)"
+| Patch_error (code, iri) ->
+    Printf.sprintf "PATCH error (%d, %s)"
       code (Iri.to_string iri)
 
 let map_opt f = function None -> None | Some x -> Some (f x)
@@ -32,26 +36,13 @@ let get_link links rel =
   try Some (List.assoc rel links)
   with Not_found -> None
 
-
-
-type meta =
-  { url : Iri.t ;
-    acl : Iri.t option ;
-    meta: Iri.t option ;
-    user: string option ;
-    websocket: string option ;
-    editable : meth list ;
-    exists: bool ;
-    xhr: string Xhr.generic_http_frame ;
-  }
-
 let dbg s = Firebug.console##log (Js.string s)
 let dbg_js js = Firebug.console##log(js)
 let dbg_ fmt = Printf.ksprintf dbg fmt
 let opt_s = function None -> "" | Some s -> s
 
 let dbg_meta m =
-  dbg_ "meta.url=%s" (Iri.to_string m.url) ;
+  dbg_ "meta.iri=%s" (Iri.to_string m.iri) ;
   do_opt (dbg_ "meta.acl=%s") (map_opt Iri.to_string m.acl);
   do_opt (dbg_ "meta.meta=%s") (map_opt Iri.to_string m.meta);
   do_opt (dbg_ "meta.user=%s") m.user;
@@ -81,7 +72,7 @@ let response_metadata (resp : string Xhr.generic_http_frame) =
       None -> []
     | Some str -> methods_of_string str
   in
-  { url = Iri.of_string url ;
+  { iri = Iri.of_string url ;
     acl ; meta ; user ;
     websocket ; editable ; exists ; xhr = resp }
 
@@ -92,7 +83,7 @@ let head url =
     ~with_credentials: true
     url >|= response_metadata
 
-let get ?accept iri =
+let get_non_rdf ?accept iri =
   let hfields =
     match accept with
       None -> []
@@ -108,18 +99,54 @@ let get ?accept iri =
   in
   Lwt.return (content_type, xhr.Xhr.content)
 
-let get_graph ?g iri =
+let get_rdf ?g iri =
   let g =
     match g with
       None -> Rdf_graph.open_graph iri
     | Some g -> g
   in
-  get ~accept: mime_turtle iri >>= fun (_, str) ->
+  get_non_rdf ~accept: mime_turtle iri >>= fun (_, str) ->
     dbg str;
     Rdf_ttl.from_string g str;
     Lwt.return g
 
-let post ?data ?(mime=mime_turtle) ?slug ~typ ?(container=false) parent =
+let get_container ?g iri = get_rdf ?g iri
+
+let is_container g =
+  let sub = Rdf_term.Iri (g.Rdf_graph.name ()) in
+  let e = g.Rdf_graph.exists ~sub ~pred: Rdf_rdf.type_ in
+  e ~obj: (Rdf_term.Iri Ldp.c_BasicContainer) () ||
+  e ~obj: (Rdf_term.Iri Ldp.c_Container) ()
+
+let get iri =
+  let hfields =
+    ["Accept", Printf.sprintf "%s, *" mime_turtle]
+  in
+  Xhr.perform_raw_url
+    ~headers: hfields
+    ~with_credentials: true
+    (Iri.to_uri iri) >>= fun xhr ->
+  let ct = xhr.Xhr.headers "Content-type" in
+  let ct = match ct with None -> "" | Some s -> s in
+  match ct with
+    | str when str = mime_turtle ->
+      begin
+        try%lwt
+          let g = Rdf_graph.open_graph iri in
+          Rdf_ttl.from_string g xhr.Xhr.content;
+          let resource = { meta = response_metadata xhr ; graph = g } in
+          if is_container g then
+            Lwt.return (Container resource)
+          else
+            Lwt.return (Rdf resource)
+        with (Rdf_ttl.Error err) as e ->
+            dbg (Rdf_ttl.string_of_error err);
+            Lwt.fail e
+      end
+    | _ ->
+      Lwt.return (Non_rdf (ct, Some xhr.Xhr.content))
+
+let post_non_rdf ?data ?(mime=mime_turtle) ?slug ~typ ?(container=false) parent =
   let hfields =
     ["Link", Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string typ)]
   in
@@ -141,11 +168,11 @@ let post ?data ?(mime=mime_turtle) ?slug ~typ ?(container=false) parent =
     | n -> error (Post_error (n, parent))
 
 let post_container ?slug iri =
-  post ?slug ~typ: Rdf_ldp.c_BasicContainer iri
+  post_non_rdf ?slug ~typ: Rdf_ldp.c_BasicContainer iri
 
-let post_resource ?data ?slug iri =
+let post_rdf ?data ?slug iri =
   let data = map_opt Rdf_ttl.to_string data in
-  post ?data ?slug ~typ: Rdf_ldp.c_Resource iri
+  post_non_rdf ?data ?slug ~typ: Rdf_ldp.c_Resource iri
 
 let put ?data ?(mime=mime_turtle) iri =
   let form_arg = map_opt (fun s -> `RawData (Js.string s)) data in
@@ -189,7 +216,7 @@ let patch ?del ?ins iri =
         (Iri.to_uri iri) >>= fun xhr ->
           match xhr.Xhr.code with
           | 200 | 201 -> Lwt.return_unit
-          | n -> error (Put_error (n, iri))
+          | n -> error (Patch_error (n, iri))
 
 let delete iri =
   Xhr.perform_raw_url

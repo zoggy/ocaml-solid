@@ -14,7 +14,7 @@ type workspace = {
 }
 
 let get_profile iri =
-  H.get_graph iri >>= fun g ->
+  H.get_rdf iri >>= fun g ->
 (*  let iri = Iri.with_fragment iri None in*)
   match g.G.objects_of
     ~sub: (Rdf_term.Iri iri) ~pred: Foaf.primaryTopic
@@ -31,7 +31,7 @@ let get_profile iri =
       in
       let load iri =
         let g = Rdf_graph.open_graph iri in
-        try%lwt H.get_graph ~g iri
+        try%lwt H.get_rdf ~g iri
         with Ldp_types.Error e ->
           H.dbg (Ldp_types.string_of_error e);
           Lwt.return g

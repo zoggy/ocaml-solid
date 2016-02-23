@@ -1,6 +1,8 @@
 
 (** *)
 
+module Xhr = XmlHttpRequest
+
 type meth = [
   | `DELETE
   | `GET
@@ -9,6 +11,32 @@ type meth = [
   | `PATCH
   | `POST
   | `PUT ]
+
+type meta = {
+  iri : Iri.t;
+  acl : Iri.t option;
+  meta : Iri.t option;
+  user : string option;
+  websocket : string option;
+  editable : meth list;
+  exists : bool;
+  xhr : string Xhr.generic_http_frame;
+}
+
+type rdf_resource =
+  { meta : meta ;
+    graph: Rdf_graph.graph ;
+  }
+
+type resource =
+| Container of rdf_resource
+| Rdf of rdf_resource
+| Non_rdf of string * string option (* mime type * content *)
+
+let container_children g =
+  let sub = Rdf_term.Iri (g.Rdf_graph.name()) in
+  let pred = Rdf_ldp.contains in
+  Rdf_graph.iri_objects_of ~sub ~pred g
 
 type error = ..
 exception Error of error

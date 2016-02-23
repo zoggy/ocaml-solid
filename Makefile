@@ -72,6 +72,14 @@ $(LIB_BYTE): $(LIB_CMIFILES) $(LIB_CMOFILES)
 %.cmi: %.mli
 	$(OCAMLFIND) ocamlc -c -package $(PACKAGES) $(COMPFLAGS) $<
 
+# Example
+#########
+examples: examples/containers.js
+
+examples/containers.js: $(LIB_BYTE) examples/containers.ml
+	$(OCAMLFIND) ocamlc -o examples/containers.byte -g -package rdf.js,js_of_ocaml.ppx,lwt,lwt.ppx,d3  -linkpkg $^
+	js_of_ocaml -o $@ examples/containers.byte
+
 ##########
 .PHONY: doc
 dump.odoc:
