@@ -77,7 +77,7 @@ $(LIB_BYTE): $(LIB_CMIFILES) $(LIB_CMOFILES)
 examples: examples/containers.js
 
 examples/containers.js: $(LIB_BYTE) examples/containers.ml
-	$(OCAMLFIND) ocamlc -o examples/containers.byte -g -package rdf.js,js_of_ocaml.ppx,lwt,lwt.ppx,d3  -linkpkg $^
+	$(OCAMLFIND) ocamlc -o examples/containers.byte -g -package rdf.js,js_of_ocaml.ppx,lwt,lwt.ppx  -linkpkg $(COMPFLAGS) $^
 	js_of_ocaml -o $@ examples/containers.byte
 
 ##########

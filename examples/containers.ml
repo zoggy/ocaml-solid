@@ -1,6 +1,7 @@
 (** *)
 open Ldp_types
 open Ldp_http
+open Lwt.Infix
 
 let iri = Iri.of_string "https://zoggy.databox.me"
 
@@ -21,27 +22,48 @@ let containers () =
   in
   iter iri
 
-open D3
-
-let children t _ =
+let node_text t =
   match t with
-    CONT (iri, children) -> children
+    CONT (iri, _) -> Iri.to_string iri
+  | RDF iri -> Iri.to_string iri
+  | NRDF (iri, ct) -> Printf.sprintf "%s [%s]" (Iri.to_string iri) ct
+
+let node_children t =
+  match t with
+    CONT (iri, l) -> l
   | RDF iri -> []
   | NRDF (iri, ct) -> []
-let rec view () =
-  nest (selectAll "div" <.> data children)
-    [ enter |. append "div" |. data children ;
-      update
-      |. (text (fun _ t _ ->
-      match t with
-          CONT (iri, children) -> Iri.to_string iri
-        | RDF iri -> Iri.to_string iri
-        | NRDF (iri, ct) -> Printf.sprintf "%s [%s]" (Iri.to_string iri) ct
-    ))
-   ]
 
-let run =
-  let%lwt containers = containers () in
-  let node = Dom_html.getElementById "containers" in
-  D3.run ~node (view ()) containers ;
-  Lwt.return_unit
+let insert =
+  let doc = Dom_html.document in
+  let rec iter ?(first=false) node t =
+    let li =
+      if first then
+        node
+      else
+        (
+         let li = doc##createElement (Js.string "li") in
+         Dom.appendChild node li;
+         li
+        )
+    in
+    Dom.appendChild li (doc##createTextNode (Js.string (node_text t)));
+    match node_children t with
+      [] -> ()
+    | l ->
+        let ul = doc##createElement (Js.string "ul") in
+        Dom.appendChild li ul ;
+        List.iter (iter ul) l
+  in
+  iter ~first:true
+
+let run () =
+  try%lwt
+    let%lwt containers = containers () in
+    let node = Dom_html.getElementById "containers" in
+    insert node containers;
+    Lwt.return_unit
+  with
+    e -> dbg (Printexc.to_string e) ; Lwt.return_unit
+
+let _ = run ()
