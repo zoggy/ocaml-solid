@@ -152,7 +152,7 @@ let get iri =
     | _ ->
       Lwt.return (Non_rdf (ct, Some xhr.Xhr.content))
 
-let post_non_rdf ?data ?(mime=mime_turtle) ?slug ~typ ?(container=false) parent =
+let post ?data ?(mime=mime_turtle) ?slug ~typ parent =
   let hfields =
     ["Link", Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string typ)]
   in
@@ -174,11 +174,11 @@ let post_non_rdf ?data ?(mime=mime_turtle) ?slug ~typ ?(container=false) parent 
     | n -> error (Post_error (n, parent))
 
 let post_container ?slug iri =
-  post_non_rdf ?slug ~typ: Rdf_ldp.c_BasicContainer iri
+  post ?slug ~typ: Rdf_ldp.c_BasicContainer iri
 
 let post_rdf ?data ?slug iri =
   let data = map_opt Rdf_ttl.to_string data in
-  post_non_rdf ?data ?slug ~typ: Rdf_ldp.c_Resource iri
+  post ?data ?slug ~typ: Rdf_ldp.c_Resource iri
 
 let put ?data ?(mime=mime_turtle) iri =
   let form_arg = map_opt (fun s -> `RawData (Js.string s)) data in
