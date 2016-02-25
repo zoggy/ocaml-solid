@@ -12,7 +12,9 @@ let doc_meta url =
 <> a <http://rdfs.org/sioc/ns#Post> ;
     <http://purl.org/dc/terms/title> "Hello HTML doc!" .
     |};
-  Rdf_ttl.to_string g
+  let str = Rdf_ttl.to_string g in
+  dbg_ "doc_meta %s => %s" (Iri.to_string url) str;
+  str
 
 let doc_css = {|
   h1 { background-color: black;
