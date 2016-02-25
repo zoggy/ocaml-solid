@@ -44,7 +44,8 @@ LIB_CMI=$(LIB:.cmxa=.cmi)
 LIB_CMXFILES= \
 	ldp_types.cmx \
 	ldp_http.cmx \
-	solid_profile.cmx
+	solid_profile.cmx \
+	solid_updates.cmx
 
 LIB_CMOFILES=$(LIB_CMXFILES:.cmx=.cmo)
 LIB_CMIFILES=$(LIB_CMXFILES:.cmx=.cmi)

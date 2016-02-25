@@ -36,10 +36,29 @@ let t =
   try%lwt
     let%lwt user = login ~url: id_iri () in
     dbg (Printf.sprintf "User=%s" (match user with None -> "" | Some u -> u));
-    let%lwt g = get_rdf
+    let%lwt prefs = get
       (Iri.of_string "https://zoggy.databox.me/Preferences/prefs.ttl")
     in
-    dbg (Rdf_ttl.to_string g) ;
+    let%lwt () =
+      match prefs with
+        Rdf { meta = { websocket = Some upd_iri } ;graph } ->
+          dbg (Rdf_ttl.to_string graph) ;
+          begin
+            try%lwt
+              let%lwt upd = Solid_updates.create upd_iri in
+              Solid_updates.sub upd (Iri.of_string "https://zoggy.databox.me/Public");
+              Solid_updates.on_pub upd
+                (fun iri -> dbg_ "receveid update: pub %s" (Iri.to_string iri));
+              Lwt.return_unit
+            with
+              e ->
+                dbg (Printexc.to_string e);
+                Lwt.return_unit
+          end
+      | _ ->
+          dbg "No updates iri";
+          Lwt.return_unit
+    in
     let%lwt meta_css = post_non_rdf ~data: doc_css ~mime: "text/css"
       (Iri.of_string "https://zoggy.databox.me/Public/style.css")
     in

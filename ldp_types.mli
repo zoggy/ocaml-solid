@@ -7,7 +7,7 @@ type meta =
     acl : Iri.t option ;
     meta: Iri.t option ;
     user: string option ;
-    websocket: string option ;
+    websocket: Iri.t option ;
     editable : meth list ;
     exists: bool ;
     xhr: string Xhr.generic_http_frame ;

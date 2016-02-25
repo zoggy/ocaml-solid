@@ -46,7 +46,7 @@ let dbg_meta m =
   do_opt (dbg_ "meta.acl=%s") (map_opt Iri.to_string m.acl);
   do_opt (dbg_ "meta.meta=%s") (map_opt Iri.to_string m.meta);
   do_opt (dbg_ "meta.user=%s") m.user;
-  do_opt (dbg_ "meta.websocket=%s") m.websocket
+  do_opt (dbg_ "meta.websocket=%s") (map_opt Iri.to_string m.websocket)
 
 let response_metadata (resp : string Xhr.generic_http_frame) =
   let links = match resp.Xhr.headers "Link" with
@@ -65,7 +65,13 @@ let response_metadata (resp : string Xhr.generic_http_frame) =
     | x -> x
   in
   let user = resp.Xhr.headers "User" in
-  let websocket = resp.Xhr.headers "Updates-via" in
+  let websocket =
+    match resp.Xhr.headers "Updates-via" with
+    | None -> None
+    | Some s ->
+      try Some (Iri.of_string s)
+      with _ -> None
+  in
   let exists = resp.Xhr.code = 200 in
   let editable =
     match resp.Xhr.headers "Allow" with
