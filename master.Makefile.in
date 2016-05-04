@@ -22,91 +22,55 @@
 #                                                                               #
 #################################################################################
 
-include master.Makefile
+# Various commands and dir
+##########################
+OCAMLBIN= @OCAMLBIN@
+OCAMLC   = @OCAMLC@ -warn-error F
+OCAMLOPT = @OCAMLOPT@ -warn-error F
+OCAMLDEP = @OCAMLDEP@
+OCAMLLEX = @OCAMLLEX@
+OCAMLYACC= @OCAMLYACC@
+OCAMLLIB = @OCAMLLIB@
+OCAMLFIND = @OCAMLFIND@
+OCAMLDOCDIR= $(OCAMLLIB)/ocamldoc
+OCAMLBEST= @OCAMLBEST@
+OCAMLVERSION = @OCAMLVERSION@
+OCAMLDOC= @OCAMLDOCOPT@
+OCAMLPP=
+
+# For installation
+##############
+MKDIR=mkdir -p
+CP=cp -f
+RM=rm -f
+
+DESTDIR=   # For debian packagers
 
 # Compilation
 #############
+ROOT=@ROOT@
+VERSION=@VERSION@
+PACKAGE=@PACKAGE@
 
-all: src
+PACKAGES=@PACKAGES@
 
-src: dummy
-	cd src && $(MAKE) all
-
-re : depend clean all
-
-# Documentation :
+# generic rules :
 #################
-doc: dummy
-	cd src && $(MAKE) doc
+.SUFFIXES: .mli .ml .cmi .cmo .cmx
 
-# myself
+%.cmi:%.mli
+	$(OCAMLFIND) ocamlc $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
 
-master.Makefile: master.Makefile.in config.status src/META.in
-	./config.status
+%.cmo:%.ml
+	$(OCAMLFIND) ocamlc $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
 
-config.status: configure
-	./config.status --recheck
+%.cmi %.cmo:%.ml
+	$(OCAMLFIND) ocamlc $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
 
-configure: configure.in
-	autoconf
+%.cmx %.o:%.ml
+	$(OCAMLFIND) ocamlopt $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
 
-# backup, clean and depend :
-############################
+# some common targets :
+#######################
+first:all
 
-distclean: clean
-	cd src && $(MAKE) distclean
-	$(RM) config.cache config.log config.status master.Makefile \
-	src/META
-
-clean:: dummy
-	$(RM) *~ \#*\#
-	cd src && $(MAKE) clean
-
-depend: dummy
-	cd src && $(MAKE) depend
-
-dummy:
-
-###########
-# Headers
-###########
-HEADFILES=configure.in configure \
-	master.Makefile.in Makefile src/Makefile web/Makefile \
-	checkocaml.ml \
-	src/*.ml src/*.mli
-
-headers: dummy
-	headache -h header -c ~/.headache_config $(HEADFILES)
-
-noheaders: dummy
-	headache -r -c ~/.headache_config $(HEADFILES)
-
-
-#################
-# installation
-#################
-
-install: dummy
-	cd src && $(MAKE) install
-
-uninstall: dummy
-	cd src && $(MAKE) uninstall
-
-
-###########
-# web site
-###########
-#WEBDEST=zoggy@forge.ocamlcore.org:/home/groups/ocaml-rdf/htdocs/
-#installweb:
-#	scp -r web/index.html web/style.css src/ocamldoc $(WEBDEST)
-###########
-# archive
-###########
-archive:
-	git archive --prefix=ocaml-solid-$(VERSION)/ HEAD | gzip > ../ocaml-solid-pages/ocaml-solid-$(VERSION).tar.gz
-
-###########################
-# additional dependencies
-###########################
-
-# DO NOT DELETE

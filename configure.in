@@ -22,91 +22,60 @@
 #                                                                               #
 #################################################################################
 
-include master.Makefile
+# check for one particular file of the sources
+AC_INIT(master.Makefile.in)
 
-# Compilation
-#############
+VERSION=0.1.0
+PACKAGE=solid
 
-all: src
+# The root directory where we will compile
+ROOT=`pwd`
 
-src: dummy
-	cd src && $(MAKE) all
+ocaml unix.cma str.cma checkocaml.ml ocaml_config.sh || exit 1
+. ./ocaml_config.sh
 
-re : depend clean all
+if test "$prefix" = "NONE" ; then
+  prefix=`dirname $OCAMLBIN`
+fi
 
-# Documentation :
-#################
-doc: dummy
-	cd src && $(MAKE) doc
+if test "$datadir" = "\${datarootdir}" ; then
+        datadir=${prefix}/share
+fi
+if test "$datadir" = "\${prefix}/share" ; then
+        datadir=$prefix/share
+fi
 
-# myself
+#############################
+# substitutions to perform
+AC_SUBST(OCAMLC)
+AC_SUBST(OCAMLOPT)
+AC_SUBST(OCAMLDEP)
+AC_SUBST(OCAMLLEX)
+AC_SUBST(OCAMLYACC)
+AC_SUBST(OCAMLBEST)
+AC_SUBST(OCAMLVERSION)
+AC_SUBST(OCAMLLIB)
+AC_SUBST(OCAMLBIN)
+AC_SUBST(OCAMLDOC)
+AC_SUBST(OCAMLFIND)
+AC_SUBST(EXEC_PREFIX)
+AC_SUBST(ROOT)
+AC_SUBST(VERSION)
+AC_SUBST(PACKAGE)
+AC_SUBST(PACKAGES)
 
-master.Makefile: master.Makefile.in config.status src/META.in
-	./config.status
+SOLID_PACKAGES="$PACKAGE, $PACKAGE.js"
+PACKAGES=lwt.ppx,rdf,tls,px_sexp_conv
 
-config.status: configure
-	./config.status --recheck
-
-configure: configure.in
-	autoconf
-
-# backup, clean and depend :
-############################
-
-distclean: clean
-	cd src && $(MAKE) distclean
-	$(RM) config.cache config.log config.status master.Makefile \
-	src/META
-
-clean:: dummy
-	$(RM) *~ \#*\#
-	cd src && $(MAKE) clean
-
-depend: dummy
-	cd src && $(MAKE) depend
-
-dummy:
-
-###########
-# Headers
-###########
-HEADFILES=configure.in configure \
-	master.Makefile.in Makefile src/Makefile web/Makefile \
-	checkocaml.ml \
-	src/*.ml src/*.mli
-
-headers: dummy
-	headache -h header -c ~/.headache_config $(HEADFILES)
-
-noheaders: dummy
-	headache -r -c ~/.headache_config $(HEADFILES)
+# Finally create the master.Makefile.in
+ACFILES="master.Makefile src/META"
+AC_OUTPUT($ACFILES)
+chmod a-w master.Makefile
+chmod a-w src/META
 
 
-#################
-# installation
-#################
-
-install: dummy
-	cd src && $(MAKE) install
-
-uninstall: dummy
-	cd src && $(MAKE) uninstall
-
-
-###########
-# web site
-###########
-#WEBDEST=zoggy@forge.ocamlcore.org:/home/groups/ocaml-rdf/htdocs/
-#installweb:
-#	scp -r web/index.html web/style.css src/ocamldoc $(WEBDEST)
-###########
-# archive
-###########
-archive:
-	git archive --prefix=ocaml-solid-$(VERSION)/ HEAD | gzip > ../ocaml-solid-pages/ocaml-solid-$(VERSION).tar.gz
-
-###########################
-# additional dependencies
-###########################
-
-# DO NOT DELETE
+cat << EOF
+====
+The following packages will be installed with findlib:
+  $SOLID_PACKAGES
+EOF
