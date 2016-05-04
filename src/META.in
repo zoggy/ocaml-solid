@@ -1,0 +1,12 @@
+version = "@VERSION@"
+description = "LDP and SOLID with OCaml"
+requires = "$(PACKAGES)"
+archive(byte) = "solid.cma"
+archive(native) = "solid.cmxa"
+archive(native,plugin) = "solid.cmxs"
+
+package "js" (
+  description = "LDP and SOLID with OCaml - Library to compile to Javascript"
+  requires = "$(PACKAGES) $(JS_PACKAGES)"
+  archive(byte) = "solid_js.cma"
+)

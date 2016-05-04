@@ -584,6 +584,7 @@ PACKAGE_URL=
 ac_unique_file="master.Makefile.in"
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+JS_PACKAGES
 PACKAGES
 PACKAGE
 VERSION
@@ -1716,8 +1717,10 @@ fi
 
 
 
+
 SOLID_PACKAGES="$PACKAGE, $PACKAGE.js"
-PACKAGES=lwt.ppx,rdf,tls,px_sexp_conv
+PACKAGES=cohttp.lwt,lwt.ppx,rdf,tls,px_sexp_conv
+JS_PACKAGES=cohttp.js
 
 # Finally create the master.Makefile.in
 ACFILES="master.Makefile src/META"

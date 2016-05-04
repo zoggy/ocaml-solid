@@ -14,3 +14,8 @@
 autom4te.cache
 configure.lino
 
+src/META
+ocaml_config.sh
+master.Makefile
+config.status
+config.log

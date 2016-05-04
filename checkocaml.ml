@@ -895,37 +895,11 @@ let _ =
 
 let _ = !print "\n### checking required tools and libraries ###\n"
 
-let menhir = ocaml_prog "menhir";;
-let _ = add_subst "MENHIR" menhir;;
-
-let _ = check_ocamlfind_package conf "calendar";;
-let _ = check_ocamlfind_package conf "sedlex";;
-let _ = check_ocamlfind_package conf ~min_version: [0;2] "iri";;
-let _ = check_ocamlfind_package conf "uri";;
-let _ = check_ocamlfind_package conf "pcre";;
-let _ = check_ocamlfind_package conf "cryptokit";;
-let _ = check_ocamlfind_package conf "yojson";;
-
-let _ =
-  match check_ocamlfind_package conf ~fail: false "mysql" with
-    true -> add_subst "LIB_MYSQL" "rdf_mysql.cmxa"
-  | _ -> ();;
-
-let _ =
-  match check_ocamlfind_package conf ~fail: false "postgresql" with
-    true ->
-      add_subst "LIB_POSTGRESQL" "rdf_postgresql.cmxa";
-      add_subst "MT_FLAGS" "-thread"
-  | _ -> ();;
-
-let _ = check_ocamlfind_package conf ~min_version: [1;1;0] "xmlm";;
-let _ = check_ocamlfind_package conf "uuidm";;
-
-let _ =
-  match check_ocamlfind_package conf ~fail: false "cohttp.lwt"
-  with
-    true -> add_subst "LIB_LWT" "rdf_lwt.cmxa"
-  | _ -> ();;
+let _ = check_ocamlfind_package conf "cohttp.js";;
+let _ = check_ocamlfind_package conf "lwt.ppx";;
+let _ = check_ocamlfind_package conf ~min_version: [0;10;0] "rdf";;
+let _ = check_ocamlfind_package conf "ppx_sexp_conv";;
+let _ = check_ocamlfind_package conf "tls"
 
 let _ = !print "\n###\n"
 

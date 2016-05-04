@@ -53,6 +53,7 @@ VERSION=@VERSION@
 PACKAGE=@PACKAGE@
 
 PACKAGES=@PACKAGES@
+JS_PACKAGES=@JS_PACKAGES@
 
 # generic rules :
 #################

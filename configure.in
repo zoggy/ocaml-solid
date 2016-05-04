@@ -63,9 +63,11 @@ AC_SUBST(ROOT)
 AC_SUBST(VERSION)
 AC_SUBST(PACKAGE)
 AC_SUBST(PACKAGES)
+AC_SUBST(JS_PACKAGES)
 
 SOLID_PACKAGES="$PACKAGE, $PACKAGE.js"
-PACKAGES=lwt.ppx,rdf,tls,px_sexp_conv
+PACKAGES=cohttp.lwt,lwt.ppx,rdf,tls,px_sexp_conv
+JS_PACKAGES=cohttp.js
 
 # Finally create the master.Makefile.in
 ACFILES="master.Makefile src/META"
