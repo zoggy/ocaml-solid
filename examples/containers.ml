@@ -5,30 +5,10 @@ open Lwt.Infix
 
 module H = Ldp_http.Http(Ldp_js.Dbg)
 
+module C = Ldp_containers.Make(H)
+open Ldp_containers
+
 let iri = Iri.of_string "https://zoggy.databox.me"
-
-type tree =
-  | NRDF of Iri.t * string
-  | RDF of Iri.t
-  | CONT of Iri.t * tree list
-
-let containers () =
-  let rec iter iri =
-    match%lwt H.get iri with
-      Container r ->
-        let children = Ldp_types.container_children r.graph in
-        let%lwt children = Lwt_list.map_p iter children in
-        Lwt.return (CONT (iri, children))
-    | Rdf r -> Lwt.return (RDF iri)
-    | Non_rdf (ct, _) -> Lwt.return (NRDF (iri, ct))
-  in
-  iter iri
-
-let node_text t =
-  match t with
-    CONT (iri, _) -> Iri.to_string iri
-  | RDF iri -> Iri.to_string iri
-  | NRDF (iri, ct) -> Printf.sprintf "%s [%s]" (Iri.to_string iri) ct
 
 let node_children t =
   match t with
@@ -61,7 +41,7 @@ let insert =
 
 let run () =
   try%lwt
-    let%lwt containers = containers () in
+    let%lwt containers = C.containers iri in
     let node = Dom_html.getElementById "containers" in
     insert node containers;
     Lwt.return_unit

@@ -10,7 +10,7 @@ package "tls" (
   description = "LDP and SOLID with OCaml - Library to use TLS"
   requires = "solid,@TLS_PACKAGES@"
   archive(byte) = "solid_tls.cma"
-  archive(native) = "solid_tls.cma"
+  archive(native) = "solid_tls.cmxa"
   archive(native,plugin) = "solid_tls.cmxs"
 )
 
