@@ -1,27 +1,19 @@
 
 (** *)
 
-module Xhr = XmlHttpRequest
+open Cohttp
 
-type meth = [
-  | `DELETE
-  | `GET
-  | `HEAD
-  | `OPTIONS
-  | `PATCH
-  | `POST
-  | `PUT ]
 
-type meta = {
-  iri : Iri.t;
-  acl : Iri.t option;
-  meta : Iri.t option;
-  user : string option;
-  websocket : Iri.t option;
-  editable : meth list;
-  exists : bool;
-  xhr : string Xhr.generic_http_frame;
-}
+type meta =
+  { iri : Iri.t ;
+    acl : Iri.t option ;
+    meta: Iri.t option ;
+    user: string option ;
+    websocket: Iri.t option ;
+    editable : Code.meth list ;
+    exists: bool ;
+    info: Response.t * Cohttp_lwt_body.t ;
+  }
 
 type rdf_resource =
   { meta : meta ;
@@ -62,25 +54,6 @@ let () = register_string_of_error
      | e -> fallback e
   )
 
-let meth_of_string = function
-  "DELETE" -> `DELETE
-| "GET" -> `GET
-| "HEAD" -> `HEAD
-| "OPTIONS" -> `OPTIONS
-| "PATCH" -> `PATCH
-| "POST" -> `POST
-| "PUT" -> `PUT
-| str -> error (Invalid_method str)
-
-let string_of_meth = function
-  `DELETE -> "DELETE"
-| `GET -> "GET"
-| `HEAD -> "HEAD"
-| `OPTIONS -> "OPTIONS"
-| `PATCH -> "PATCH"
-| `POST -> "POST"
-| `PUT -> "PUT"
-
 (*c==v=[String.split_string]=1.2====*)
 let split_string ?(keep_empty=false) s chars =
   let len = String.length s in
@@ -106,7 +79,7 @@ let split_string ?(keep_empty=false) s chars =
 
 let methods_of_string =
   let f acc m =
-    try (meth_of_string m) :: acc
+    try (Code.method_of_string m) :: acc
     with _ -> acc
   in
   fun str ->

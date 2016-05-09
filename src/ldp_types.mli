@@ -1,6 +1,4 @@
-module Xhr = XmlHttpRequest
-
-type meth = [ `DELETE | `GET | `HEAD | `OPTIONS | `PATCH | `POST | `PUT ]
+open Cohttp
 
 type meta =
   { iri : Iri.t ;
@@ -8,11 +6,10 @@ type meta =
     meta: Iri.t option ;
     user: string option ;
     websocket: Iri.t option ;
-    editable : meth list ;
+    editable : Code.meth list ;
     exists: bool ;
-    xhr: string Xhr.generic_http_frame ;
+    info: Response.t * Cohttp_lwt_body.t ;
   }
-
 
 type rdf_resource =
   { meta : meta ;
@@ -37,7 +34,5 @@ type error +=
 | Invalid_method of string
 | Missing_pred of Iri.t * Iri.t
 
-val meth_of_string : string -> meth
-val string_of_meth : meth -> string
 val split_string : ?keep_empty:bool -> string -> char list -> string list
-val methods_of_string : string -> meth list
+val methods_of_string : string -> Code.meth list

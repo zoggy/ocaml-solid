@@ -27,7 +27,7 @@
 VERSION=0.1.0
 
 OCAMLFIND=ocamlfind
-PACKAGES=js_of_ocaml.ppx,rdf.js,lwt.ppx
+PACKAGES=js_of_ocaml.ppx,rdf.js,lwt.ppx,tls.lwt,cohttp.lwt,ppx_sexp_conv
 COMPFLAGS=-annot -safe-string -g
 OCAMLPP=
 
@@ -44,6 +44,7 @@ LIB_CMI=$(LIB:.cmxa=.cmi)
 LIB_CMXFILES= \
 	ldp_types.cmx \
 	ldp_http.cmx \
+	ldp_tls.cmx \
 	solid_profile.cmx \
 	solid_updates.cmx
 
