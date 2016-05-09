@@ -66,6 +66,7 @@ LIB_JS_BYTE=$(LIB_JS)
 LIB_JS_CMI=$(LIB_JS:.cma=.cmi)
 
 LIB_JS_CMOFILES= \
+	$(LIB_CMOFILES) \
 	ldp_js.cmo \
 	solid_updates.cmo
 LIB_JS_CMIFILES=$(LIB_JS_CMOFILES:.cmo=.cmi)
@@ -95,14 +96,6 @@ $(LIB_TLS_BYTE): $(LIB_TLS_CMIFILES) $(LIB_TLS_CMOFILES)
 $(LIB_JS): $(LIB_JS_CMIFILES) $(LIB_JS_CMOFILES)
 	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_JS_CMOFILES)
 
-# Example
-#########
-examples: examples/containers.js
-
-../examples/containers.js: $(LIB_BYTE) ../examples/containers.ml
-	$(OCAMLFIND) ocamlc -o ../examples/containers.byte -g -package rdf.js,js_of_ocaml.ppx,lwt,lwt.ppx  -linkpkg $(COMPFLAGS) $^
-	js_of_ocaml -o $@ ../examples/containers.byte
-
 ##########
 .PHONY: doc
 dump.odoc:
@@ -121,7 +114,7 @@ docstog: dump.odoc
 
 ##########
 install: byte opt
-	$(OCAMLFIND) install solid META LICENSE \
+	$(OCAMLFIND) install solid META ../LICENSE \
 		$(LIB) $(LIB_CMXS) $(LIB_OFILES) $(LIB_CMXFILES) $(LIB_A) \
 		$(LIB_BYTE) $(LIB_CMIFILES) $(LIB_CMIFILES:.cmi=.mli) \
 		$(LIB_TLS) $(LIB_TLS_CMXS) $(LIB_TLS_OFILES) $(LIB_TLS_CMXFILES) $(LIB_TLS_A) \

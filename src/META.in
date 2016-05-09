@@ -5,14 +5,19 @@ archive(byte) = "solid.cma"
 archive(native) = "solid.cmxa"
 archive(native,plugin) = "solid.cmxs"
 
+package "tls" (
+  version = "@VERSION@"
+  description = "LDP and SOLID with OCaml - Library to use TLS"
+  requires = "solid,@TLS_PACKAGES@"
+  archive(byte) = "solid_tls.cma"
+  archive(native) = "solid_tls.cma"
+  archive(native,plugin) = "solid_tls.cmxs"
+)
+
 package "js" (
+  version = "@VERSION@"
   description = "LDP and SOLID with OCaml - Library to compile to Javascript"
-  requires = "@PACKAGES@,@JS_PACKAGES@"
+  requires = "cohttp.lwt,lwt.ppx,rdf.js,ppx_sexp_conv,@JS_PACKAGES@"
   archive(byte) = "solid_js.cma"
 )
 
-package "tls" (
-  description = "LDP and SOLID with OCaml - Library to use TLS"
-  requires = "@PACKAGES@,@TLS_PACKAGES@"
-  archive(byte) = "solid_tls.cma"
-)

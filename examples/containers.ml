@@ -3,6 +3,8 @@ open Ldp_types
 open Ldp_http
 open Lwt.Infix
 
+module H = Ldp_http.Http(Ldp_js.Dbg)
+
 let iri = Iri.of_string "https://zoggy.databox.me"
 
 type tree =
@@ -12,7 +14,7 @@ type tree =
 
 let containers () =
   let rec iter iri =
-    match%lwt Ldp_http.get iri with
+    match%lwt H.get iri with
       Container r ->
         let children = Ldp_types.container_children r.graph in
         let%lwt children = Lwt_list.map_p iter children in
@@ -64,6 +66,6 @@ let run () =
     insert node containers;
     Lwt.return_unit
   with
-    e -> dbg (Printexc.to_string e) ; Lwt.return_unit
+    e -> H.dbg (Printexc.to_string e)
 
 let _ = run ()

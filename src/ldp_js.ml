@@ -32,4 +32,4 @@ let login_iri () =
   let loc = w##.location in
   let o = Js.to_string (Dom_html.location_origin loc) in
   let p = Js.to_string (loc##.pathname) in
-  o ^ p
+  Iri.of_string (o ^ p)
