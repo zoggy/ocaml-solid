@@ -64,10 +64,12 @@ AC_SUBST(VERSION)
 AC_SUBST(PACKAGE)
 AC_SUBST(PACKAGES)
 AC_SUBST(JS_PACKAGES)
+AC_SUBST(TLS_PACKAGES)
 
 SOLID_PACKAGES="$PACKAGE, $PACKAGE.js"
-PACKAGES=cohttp.lwt,lwt.ppx,rdf,tls,px_sexp_conv
-JS_PACKAGES=cohttp.js
+PACKAGES=cohttp.lwt,lwt.ppx,rdf,tls,ppx_sexp_conv
+JS_PACKAGES=cohttp.js,js_of_ocaml.ppx
+TLS_PACKAGES=tls.lwt
 
 # Finally create the master.Makefile.in
 ACFILES="master.Makefile src/META"

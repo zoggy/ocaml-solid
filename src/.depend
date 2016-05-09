@@ -15,5 +15,5 @@ test_solid.cmx : ldp_types.cmx ldp_http.cmx
 ldp_http.cmi : ldp_types.cmi
 ldp_tls.cmi : ldp_http.cmi
 ldp_types.cmi :
-solid_profile.cmi :
+solid_profile.cmi : ldp_http.cmi
 solid_updates.cmi :

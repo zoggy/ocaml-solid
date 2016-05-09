@@ -96,6 +96,7 @@ module type Requests =
 
 module type Http =
   sig
+    val dbg : string -> unit Lwt.t
     val head : Iri.t -> Ldp_types.meta Lwt.t
     val get_non_rdf : ?accept:string -> Iri.t -> (string * string) Lwt.t
     val get_rdf : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
@@ -122,6 +123,8 @@ module type Http =
 
 module Http (P:Requests) =
   struct
+    let dbg = P.dbg
+
     let head iri = P.call `HEAD iri >|= response_metadata iri
 
     let get_non_rdf ?accept iri =

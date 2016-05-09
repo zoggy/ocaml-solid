@@ -30,6 +30,7 @@ val response_metadata : Iri.t -> (Response.t * Cohttp_lwt_body.t) -> Ldp_types.m
 
 module type Http =
   sig
+    val dbg : string -> unit Lwt.t
     val head : Iri.t -> Ldp_types.meta Lwt.t
     val get_non_rdf : ?accept:string -> Iri.t -> (string * string) Lwt.t
     val get_rdf : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t

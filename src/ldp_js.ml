@@ -1,6 +1,6 @@
 
 
-module Client = Make_client_async(struct
+module Client = Cohttp_lwt_xhr.Make_client_async(struct
     let chunked_response = true
     let chunk_size = 128 * 1024
     let convert_body_string = Js.to_bytestring
@@ -22,7 +22,7 @@ module Make (P:P) =
 
 module Dbg =
   Make (struct
-    let dbg s = Firebug.console##log (Js.string s)
+    let dbg s = Firebug.console##log (Js.string s); Lwt.return_unit
   end)
 
 module Nodbg = Make (struct let dbg s = Lwt.return_unit end)
@@ -30,6 +30,6 @@ module Nodbg = Make (struct let dbg s = Lwt.return_unit end)
 let login_iri () =
   let w = Dom_html.window in
   let loc = w##.location in
-  let o = Js.to_string (Dom_html.location_origin_safe loc) in
+  let o = Js.to_string (Dom_html.location_origin loc) in
   let p = Js.to_string (loc##.pathname) in
   o ^ p

@@ -10,3 +10,9 @@ package "js" (
   requires = "$(PACKAGES) $(JS_PACKAGES)"
   archive(byte) = "solid_js.cma"
 )
+
+package "tls" (
+  description = "LDP and SOLID with OCaml - Library to use TLS"
+  requires = "$(PACKAGES) $(TLS_PACKAGES)"
+  archive(byte) = "solid_tls.cma"
+)

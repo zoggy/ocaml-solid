@@ -23,13 +23,11 @@
 #                                                                               #
 #################################################################################
 
-# DO NOT FORGET TO UPDATE META FILE
-VERSION=0.1.0
+include ../master.Makefile
 
 OCAMLFIND=ocamlfind
-PACKAGES=js_of_ocaml.ppx,rdf.js,lwt.ppx,tls.lwt,cohttp.lwt,ppx_sexp_conv
 COMPFLAGS=-annot -safe-string -g
-OCAMLPP=
+OF_FLAGS=-package $(PACKAGES),$(JS_PACKAGES),$(TLS_PACKAGES)
 
 RM=rm -f
 CP=cp -f
@@ -44,43 +42,66 @@ LIB_CMI=$(LIB:.cmxa=.cmi)
 LIB_CMXFILES= \
 	ldp_types.cmx \
 	ldp_http.cmx \
-	ldp_tls.cmx \
-	solid_profile.cmx \
-	solid_updates.cmx
+	solid_profile.cmx
 
 LIB_CMOFILES=$(LIB_CMXFILES:.cmx=.cmo)
 LIB_CMIFILES=$(LIB_CMXFILES:.cmx=.cmi)
 LIB_OFILES=$(LIB_CMXFILES:.cmx=.o)
 
+LIB_TLS=solid_tls.cmxa
+LIB_TLS_CMXS=$(LIB_TLS:.cmxa=.cmxs)
+LIB_TLS_A=$(LIB_TLS:.cmxa=.a)
+LIB_TLS_BYTE=$(LIB_TLS:.cmxa=.cma)
+LIB_TLS_CMI=$(LIB_TLS:.cmxa=.cmi)
+
+LIB_TLS_CMXFILES= \
+	ldp_tls.cmx \
+
+LIB_TLS_CMOFILES=$(LIB_TLS_CMXFILES:.cmx=.cmo)
+LIB_TLS_CMIFILES=$(LIB_TLS_CMXFILES:.cmx=.cmi)
+LIB_TLS_OFILES=$(LIB_TLS_CMXFILES:.cmx=.o)
+
+LIB_JS=solid_js.cma
+LIB_JS_BYTE=$(LIB_JS)
+LIB_JS_CMI=$(LIB_JS:.cma=.cmi)
+
+LIB_JS_CMOFILES= \
+	ldp_js.cmo \
+	solid_updates.cmo
+LIB_JS_CMIFILES=$(LIB_JS_CMOFILES:.cmo=.cmi)
+
 all: byte opt
-byte: $(LIB_BYTE)
-opt: $(LIB) $(LIB_CMXS)
+byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_JS)
+opt: $(LIB) $(LIB_CMXS) $(LIB_TLS) $(LIB_TLS_CMXS)
 
 $(LIB): $(LIB_CMIFILES) $(LIB_CMXFILES)
-	$(OCAMLFIND) ocamlopt -o $@ -a -package $(PACKAGES) $(LIB_CMXFILES)
+	$(OCAMLFIND) ocamlopt -o $@ -a $(LIB_CMXFILES)
 
 $(LIB_CMXS): $(LIB_CMIFILES) $(LIB_CMXFILES)
-	$(OCAMLFIND) ocamlopt -shared -o $@ -package $(PACKAGES) $(LIB_CMXFILES)
+	$(OCAMLFIND) ocamlopt -shared -o $@ $(LIB_CMXFILES)
 
 $(LIB_BYTE): $(LIB_CMIFILES) $(LIB_CMOFILES)
-	$(OCAMLFIND) ocamlc -o $@ -a -package $(PACKAGES) $(LIB_CMOFILES)
+	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_CMOFILES)
 
-%.cmx: %.ml %.cmi
-	$(OCAMLFIND) ocamlopt -c -package $(PACKAGES) $(COMPFLAGS) $<
+$(LIB_TLS): $(LIB_TLS_CMIFILES) $(LIB_TLS_CMXFILES)
+	$(OCAMLFIND) ocamlopt -o $@ -a $(LIB_TLS_CMXFILES)
 
-%.cmo: %.ml %.cmi
-	$(OCAMLFIND) ocamlc -c -package $(PACKAGES) $(COMPFLAGS) $<
+$(LIB_TLS_CMXS): $(LIB_TLS_CMIFILES) $(LIB_TLS_CMXFILES)
+	$(OCAMLFIND) ocamlopt -shared -o $@ $(LIB_TLS_CMXFILES)
 
-%.cmi: %.mli
-	$(OCAMLFIND) ocamlc -c -package $(PACKAGES) $(COMPFLAGS) $<
+$(LIB_TLS_BYTE): $(LIB_TLS_CMIFILES) $(LIB_TLS_CMOFILES)
+	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_TLS_CMOFILES)
+
+$(LIB_JS): $(LIB_JS_CMIFILES) $(LIB_JS_CMOFILES)
+	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_JS_CMOFILES)
 
 # Example
 #########
 examples: examples/containers.js
 
-examples/containers.js: $(LIB_BYTE) examples/containers.ml
-	$(OCAMLFIND) ocamlc -o examples/containers.byte -g -package rdf.js,js_of_ocaml.ppx,lwt,lwt.ppx  -linkpkg $(COMPFLAGS) $^
-	js_of_ocaml -o $@ examples/containers.byte
+../examples/containers.js: $(LIB_BYTE) ../examples/containers.ml
+	$(OCAMLFIND) ocamlc -o ../examples/containers.byte -g -package rdf.js,js_of_ocaml.ppx,lwt,lwt.ppx  -linkpkg $(COMPFLAGS) $^
+	js_of_ocaml -o $@ ../examples/containers.byte
 
 ##########
 .PHONY: doc
@@ -102,7 +123,10 @@ docstog: dump.odoc
 install: byte opt
 	$(OCAMLFIND) install solid META LICENSE \
 		$(LIB) $(LIB_CMXS) $(LIB_OFILES) $(LIB_CMXFILES) $(LIB_A) \
-		$(LIB_BYTE) $(LIB_CMIFILES) solid.mli
+		$(LIB_BYTE) $(LIB_CMIFILES) $(LIB_CMIFILES:.cmi=.mli) \
+		$(LIB_TLS) $(LIB_TLS_CMXS) $(LIB_TLS_OFILES) $(LIB_TLS_CMXFILES) $(LIB_TLS_A) \
+		$(LIB_TLS_BYTE) $(LIB_TLS_CMIFILES) $(LIB_TLS_CMIFILES:.cmi=.mli) \
+		$(LIB_JS) $(LIB_JS_CMIFILES) $(LIB_JS_CMIFILES:.cmi=.mli)
 
 uninstall:
 	ocamlfind remove solid
