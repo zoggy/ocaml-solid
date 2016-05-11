@@ -207,6 +207,12 @@ module Http (P:Requests) =
         in
         h
       in
+      (*prerr_endline
+        (let s =
+          Cohttp.Header.pp_hum Format.str_formatter headers ;
+          Format.flush_str_formatter ()
+         in
+         Printf.sprintf "request header=%s" s);*)
       let body = map_opt (fun s -> `String s) data in
       P.call ~headers ?body `POST iri
         >>= fun (resp, body) ->
@@ -215,7 +221,11 @@ module Http (P:Requests) =
         | n -> error (Post_error (n, iri))
 
     let post_container ?slug iri =
-      post ?slug ~typ: Rdf_ldp.c_BasicContainer iri
+      let data =
+        Printf.sprintf "<> a %s .\n"
+          (Rdf_term.string_of_term (Rdf_term.Iri Rdf_ldp.c_BasicContainer))
+      in
+      post ~data ?slug ~typ: Rdf_ldp.c_BasicContainer iri
 
     let post_rdf ?data ?slug iri =
       let data = map_opt Rdf_ttl.to_string data in
