@@ -41,5 +41,27 @@ let parse ?(options=[]) ?(usage=usage) () =
   let%lwt http = ldp_http ~cert: !cert_pem ~priv_key: !priv_key ~cert_dir: !server_cert_dir in
   Lwt.return (List.rev !args, http)
 
+let print_alert where alert =
+  let msg = Printf.sprintf "TLS ALERT (%s): %s"
+    where (Tls.Packet.alert_type_to_string alert)
+  in
+  Lwt_io.(write_line stderr msg)
 
-  
+let print_fail where fail =
+  let msg = Printf.sprintf "TLS FAIL (%s): %s"
+    where (Tls.Engine.string_of_failure fail)
+  in
+  Lwt_io.(write_line stderr msg)
+
+let main ?options ?usage f =
+  let main =
+    try%lwt
+      let%lwt (args, http) = parse ?options ?usage () in
+      f args http
+    with
+    | Tls_lwt.Tls_alert alert ->
+        print_alert "remote end" alert >>= fun () -> exit 1
+    | Tls_lwt.Tls_failure alert ->
+        print_fail "our end" alert >>= fun () -> exit 1
+  in
+  Lwt_main.run main

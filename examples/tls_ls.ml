@@ -15,8 +15,7 @@ let string_of_tree tree =
   iter "" tree ;
   Buffer.contents b
 
-let main =
-  let%lwt (args, http) = Tls_common.parse () in
+let f args http =
   match args with
     [] -> Lwt.return_unit
   | iri :: _ ->
@@ -25,5 +24,4 @@ let main =
       let%lwt tree = C.containers (Iri.of_string iri) in
       Lwt_io.write Lwt_io.stdout (string_of_tree tree)
 
-
-let () = Lwt_main.run main
+let () = Tls_common.main f
