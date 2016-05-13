@@ -112,7 +112,7 @@ module type Http =
     val post_rdf :
       ?data:Rdf_graph.graph ->
       ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
-    val put : ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
+    val put : ?data:string -> ?mime:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_non_rdf :
       ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
     val patch :
@@ -221,19 +221,26 @@ module Http (P:Requests) =
         | n -> error (Post_error (n, iri))
 
     let post_container ?slug iri =
-      let data =
-        Printf.sprintf "<> a %s .\n"
+      (*let data =
+        Printf.sprintf "%s a %s, %s .\n"
+          (Rdf_term.string_of_term (Rdf_term.Iri iri))
           (Rdf_term.string_of_term (Rdf_term.Iri Rdf_ldp.c_BasicContainer))
+          (Rdf_term.string_of_term (Rdf_term.Iri Rdf_ldp.c_Container))
       in
-      post ~data ?slug ~typ: Rdf_ldp.c_BasicContainer iri
+      *)
+      post (*~data*) ?slug ~typ: Rdf_ldp.c_BasicContainer iri
 
     let post_rdf ?data ?slug iri =
       let data = map_opt Rdf_ttl.to_string data in
       post ?data ?slug ~typ: Rdf_ldp.c_Resource iri
 
-    let put ?data ?(mime=mime_turtle) iri =
+    let put ?data ?(mime=mime_turtle) ?(typ=Rdf_ldp.c_NonRDFSource) iri =
       let body = map_opt (fun s -> `String s) data in
       let headers = Header.init_with "Content-type" mime in
+      let headers =
+        Header.add headers
+          "Link" (Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string typ))
+      in
       P.call ~headers ?body `PUT iri
       >>= fun (resp, body) ->
         match Code.code_of_status resp.Response.status with
@@ -241,7 +248,7 @@ module Http (P:Requests) =
         | n -> error (Put_error (n, iri))
 
     let post_non_rdf ?data ?mime iri =
-      put ?data ?mime (*~typ: Rdf_ldp.ldp_NonRDFSource*) iri
+      put ?data ?mime ~typ: Rdf_ldp.c_NonRDFSource iri
 
     let patch ?del ?ins iri =
       let b = Buffer.create 256 in

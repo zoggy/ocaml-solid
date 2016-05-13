@@ -1,7 +1,9 @@
 open Lwt.Infix
 
 let print_type = ref false
-let options = ["--print-type", Arg.Set print_type, " print content-type"]
+let options =
+  ["--print-type", Arg.Set print_type, " print content-type" ]
+
 let f args http =
   match args with
     [] -> Lwt.return_unit

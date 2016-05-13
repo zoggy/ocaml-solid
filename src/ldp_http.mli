@@ -48,7 +48,10 @@ module type Http =
     val post_rdf :
       ?data:Rdf_graph.graph ->
       ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
-    val put : ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
+
+    (** Default [mime] is text/turtle.
+        Default [typ] is nonRdfSource.*)
+    val put : ?data:string -> ?mime:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_non_rdf :
       ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
     val patch :
