@@ -5,17 +5,16 @@ open Ldp_types
 open Cohttp
 open Lwt.Infix;;
 
-type error =
+type Ldp_types.error +=
   | Post_error of int * Iri.t
   | Get_error of int * Iri.t
   | Put_error of int * Iri.t
   | Patch_error of int * Iri.t
   | Delete_error of int * Iri.t
 
-exception Error of error
-let error e = Lwt.fail (Error e)
+let error e = Ldp_types.fail e
 
-let string_of_error = function
+let string_of_error fallback = function
 | Post_error (code, iri) ->
     Printf.sprintf "POST error (%d, %s)"
       code (Iri.to_string iri)
@@ -31,6 +30,9 @@ let string_of_error = function
 | Delete_error (code, iri) ->
     Printf.sprintf "DELETE error (%d, %s)"
       code (Iri.to_string iri)
+| e -> fallback e
+
+let () = Ldp_types.register_string_of_error string_of_error
 
 let map_opt f = function None -> None | Some x -> Some (f x)
 let do_opt f = function None -> () | Some x -> f x
@@ -221,14 +223,13 @@ module Http (P:Requests) =
         | n -> error (Post_error (n, iri))
 
     let post_container ?slug iri =
-      (*let data =
+      let data =
         Printf.sprintf "%s a %s, %s .\n"
           (Rdf_term.string_of_term (Rdf_term.Iri iri))
           (Rdf_term.string_of_term (Rdf_term.Iri Rdf_ldp.c_BasicContainer))
           (Rdf_term.string_of_term (Rdf_term.Iri Rdf_ldp.c_Container))
       in
-      *)
-      post (*~data*) ?slug ~typ: Rdf_ldp.c_BasicContainer iri
+      post ~data ?slug ~typ: Rdf_ldp.c_BasicContainer iri
 
     let post_rdf ?data ?slug iri =
       let data = map_opt Rdf_ttl.to_string data in

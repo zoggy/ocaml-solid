@@ -1,16 +1,12 @@
 module Ldp = Rdf_ldp
 open Cohttp
 
-type error =
+type Ldp_types.error +=
   | Post_error of int * Iri.t
   | Get_error of int * Iri.t
   | Put_error of int * Iri.t
   | Patch_error of int * Iri.t
   | Delete_error of int * Iri.t
-
-exception Error of error
-
-val string_of_error : error -> string
 
 val map_opt : ('a -> 'b) -> 'a option -> 'b option
 val do_opt : ('a -> unit) -> 'a option -> unit
