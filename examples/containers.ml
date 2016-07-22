@@ -41,11 +41,15 @@ let insert =
 
 let run () =
   try%lwt
+    let%lwt cont = H.post_container ~slug: "my-container" iri in
+    let%lwt cont2 = H.post_container ~slug: "my-container2" cont.Ldp_types.iri in
     let%lwt containers = C.containers iri in
     let node = Dom_html.getElementById "containers" in
     insert node containers;
-    Lwt.return_unit
+    let%lwt () = H.delete cont2.Ldp_types.iri in
+    H.delete cont.Ldp_types.iri
   with
-    e -> H.dbg (Printexc.to_string e)
+  | Ldp_types.Error e -> H.dbg (Ldp_types.string_of_error e)
+  | e -> H.dbg (Printexc.to_string e)
 
 let _ = run ()

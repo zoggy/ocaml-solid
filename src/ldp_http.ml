@@ -110,10 +110,19 @@ module type Http =
       ?data:string ->
       ?mime:string ->
       ?slug:string -> typ:Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
-    val post_container : ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
+    val post_container : ?data: Rdf_graph.graph ->
+      ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
+    val post_direct_container : ?data: Rdf_graph.graph ->
+      ?slug:string -> ?membershipResource: Iri.t ->
+        relation: [< `HasMember of Iri.t | `IsMemberOf of Iri.t ] ->
+          Iri.t -> Ldp_types.meta Lwt.t
+    val post_indirect_container : ?data: Rdf_graph.graph ->
+      ?slug:string -> ?membershipResource: Iri.t ->
+        relation: [< `HasMember of Iri.t | `IsMemberOf of Iri.t ] ->
+          insertedContent: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_rdf :
       ?data:Rdf_graph.graph ->
-      ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
+      ?slug:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val put : ?data:string -> ?mime:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_non_rdf :
       ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
@@ -222,18 +231,70 @@ module Http (P:Requests) =
         | 200 | 201 -> Lwt.return (response_metadata iri (resp, body))
         | n -> error (Post_error (n, iri))
 
-    let post_container ?slug iri =
-      let data =
-        Printf.sprintf "%s a %s, %s .\n"
-          (Rdf_term.string_of_term (Rdf_term.Iri iri))
-          (Rdf_term.string_of_term (Rdf_term.Iri Rdf_ldp.c_BasicContainer))
-          (Rdf_term.string_of_term (Rdf_term.Iri Rdf_ldp.c_Container))
-      in
-      post ~data ?slug ~typ: Rdf_ldp.c_BasicContainer iri
-
-    let post_rdf ?data ?slug iri =
+    let post_rdf ?data ?slug ?(typ=Rdf_ldp.c_Resource) iri =
       let data = map_opt Rdf_ttl.to_string data in
-      post ?data ?slug ~typ: Rdf_ldp.c_Resource iri
+      post ?data ?slug ~typ iri
+
+    let empty_iri = Iri.of_string ""
+
+    let mk_container ?(data=Rdf_graph.open_graph empty_iri)
+     ?membershipResource ?relation ?insertedContent typ =
+      let open Rdf_graph in
+      let open Rdf_term in
+      let add = data.add_triple ~sub: (Iri empty_iri) in
+      add ~pred: Rdf_dc.type_ ~obj: (Iri Rdf_ldp.c_Container);
+      add ~pred: Rdf_dc.type_ ~obj: (Iri typ);
+      (
+       match membershipResource with
+         None -> ()
+       | Some iri ->
+           add ~pred: Rdf_ldp.membershipResource
+             ~obj: (Iri iri)
+      );
+      (
+       match relation with
+       | None -> ()
+       | Some (`HasMember iri) ->
+           add ~pred: Rdf_ldp.hasMemberRelation
+             ~obj: (Iri iri)
+       | Some (`IsMemberOf iri) ->
+           add ~pred: Rdf_ldp.isMemberOfRelation
+             ~obj: (Iri iri)
+      );
+      (match insertedContent with
+         None -> ()
+       | Some iri -> add ~pred: Rdf_ldp.insertedContentRelation ~obj: (Iri iri)
+      );
+      data
+
+    let post_container ?data ?slug iri =
+      let data = mk_container ?data Rdf_ldp.c_BasicContainer in
+      post_rdf ~data ?slug ~typ: Rdf_ldp.c_BasicContainer iri
+
+    let post_direct_container ?data ?slug ?membershipResource ~relation iri =
+      let membershipResource =
+        match membershipResource with
+          None -> empty_iri
+        | Some iri -> iri
+      in
+      let data = mk_container ?data
+        ~membershipResource ~relation
+          Rdf_ldp.c_DirectContainer
+      in
+      post_rdf ~data ?slug ~typ: Rdf_ldp.c_DirectContainer iri
+
+    let post_indirect_container ?data
+      ?slug ?membershipResource ~relation ~insertedContent iri =
+      let membershipResource =
+        match membershipResource with
+          None -> empty_iri
+        | Some iri -> iri
+      in
+      let data = mk_container ?data
+        ~membershipResource ~relation ~insertedContent
+          Rdf_ldp.c_IndirectContainer
+      in
+      post_rdf ~data ?slug ~typ: Rdf_ldp.c_IndirectContainer iri
 
     let put ?data ?(mime=mime_turtle) ?(typ=Rdf_ldp.c_NonRDFSource) iri =
       let body = map_opt (fun s -> `String s) data in

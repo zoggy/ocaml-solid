@@ -3,7 +3,8 @@ open Lwt.Infix
 let usage = Printf.sprintf "Usage: %s [options] [args]\nwhere options are:" Sys.argv.(0)
 
 let ldp_http ~cert ~priv_key ~cert_dir =
-  let%lwt authenticator = X509_lwt.authenticator (`Ca_dir cert_dir) in
+  let%lwt authenticator = X509_lwt.authenticator `No_authentication_I'M_STUPID in
+(*  let%lwt authenticator = X509_lwt.authenticator (`Ca_dir cert_dir) in*)
   let%lwt certificates = X509_lwt.private_of_pems ~cert ~priv_key >>=
     fun c -> Lwt.return (`Single c)
   in

@@ -35,15 +35,30 @@ module type Http =
     val get_container :
      ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
     val is_container : Rdf_graph.graph -> bool
+
     val get : Iri.t -> Ldp_types.resource Lwt.t
+
     val post :
       ?data:string ->
       ?mime:string ->
       ?slug:string -> typ:Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
-    val post_container : ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
+
+    val post_container : ?data: Rdf_graph.graph ->
+      ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
+
+    val post_direct_container : ?data: Rdf_graph.graph ->
+      ?slug:string -> ?membershipResource: Iri.t ->
+        relation: [< `HasMember of Iri.t | `IsMemberOf of Iri.t ] ->
+          Iri.t -> Ldp_types.meta Lwt.t
+
+    val post_indirect_container : ?data: Rdf_graph.graph ->
+      ?slug:string -> ?membershipResource: Iri.t ->
+        relation: [< `HasMember of Iri.t | `IsMemberOf of Iri.t ] ->
+          insertedContent: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
+
     val post_rdf :
       ?data:Rdf_graph.graph ->
-      ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
+      ?slug:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
 
     (** Default [mime] is text/turtle.
         Default [typ] is nonRdfSource.*)
