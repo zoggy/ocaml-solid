@@ -4,11 +4,12 @@ open Ldp_http
 open Lwt.Infix
 
 module H = Ldp_http.Http(Ldp_js.Dbg)
-
+module P = Solid_profile.Make(H)
 module C = Ldp_containers.Make(H)
 open Ldp_containers
 
 let iri = Iri.of_string "https://zoggy.databox.me"
+
 
 let node_children t =
   match t with
