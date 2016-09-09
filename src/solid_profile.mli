@@ -14,6 +14,7 @@ module type S =
     val inbox : profile -> Iri.t option
     val storages : profile -> Iri.t list
     val name : profile -> string
+    val pim : profile -> Rdf_pim.from
   end
 
 module Make : Ldp_http.Http -> S

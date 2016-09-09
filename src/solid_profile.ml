@@ -20,6 +20,7 @@ module type S =
     val inbox : profile -> Iri.t option
     val storages : profile -> Iri.t list
     val name : profile -> string
+    val pim : profile -> Rdf_pim.from
   end
 
 module Make (H: Ldp_http.Http) =
@@ -105,4 +106,10 @@ module Make (H: Ldp_http.Http) =
       | _ :: q -> iter q
       in
       iter l
+
+    let pim profile =
+      match primary_topic profile with
+        Rdf_term.Iri sub -> new Rdf_pim.from ~sub profile
+      | _ -> new Rdf_pim.from profile
+
   end
