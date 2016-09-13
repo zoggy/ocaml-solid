@@ -10,8 +10,8 @@ type workspace =
 module type S =
   sig
     val get_profile : Iri.t -> profile Lwt.t
-    val get_workspaces : ?profile: profile -> Iri.t -> workspace list Lwt.t
     val inbox : profile -> Iri.t option
+    val workspaces : profile -> workspace list
     val storages : profile -> Iri.t list
     val name : profile -> string
     val pim : profile -> Rdf_pim.from

@@ -16,8 +16,8 @@ type workspace = {
 module type S =
   sig
     val get_profile : Iri.t -> profile Lwt.t
-    val get_workspaces : ?profile: profile -> Iri.t -> workspace list Lwt.t
     val inbox : profile -> Iri.t option
+    val workspaces : profile -> workspace list
     val storages : profile -> Iri.t list
     val name : profile -> string
     val pim : profile -> Rdf_pim.from
@@ -42,13 +42,15 @@ module Make (H: Ldp_http.Http) =
         try Lwt.return (primary_topic g)
         with e -> Lwt.fail e
       in
-      let f acc pred =
-        let objs = G.iri_objects_of g ~sub: (Rdf_term.Iri iri) ~pred in
+      let f sub acc pred =
+        let objs = G.iri_objects_of g ~sub ~pred in
         objs @ acc
       in
-      let to_load = List.fold_left f []
-        [ Rdf_owl.sameAs ; Rdf_rdfs.seeAlso ; Rdf_pim.preferencesFile ]
+      let to_load_preds =
+        [ Rdf_owl.sameAs ; Rdf_rdfs.seeAlso ; Rdf_pim.preferencesFile ]      
       in
+      let to_load = List.fold_left (f (Rdf_term.Iri iri)) [] to_load_preds in
+      let to_load = List.fold_left (f webid) to_load to_load_preds in
       let load iri =
         let g = Rdf_graph.open_graph iri in
         try%lwt H.get_rdf ~g iri
@@ -60,13 +62,10 @@ module Make (H: Ldp_http.Http) =
       List.iter (Rdf_graph.merge g) graphs ;
       Lwt.return g
 
-    let get_workspaces ?profile webid =
-      let%lwt profile = match profile with
-          None -> get_profile webid
-        | Some p -> Lwt.return p
-      in
+    let workspaces profile =
+      let webid = primary_topic profile in
       let ws = G.iri_objects_of profile
-        ~sub:(Rdf_term.Iri webid) ~pred: Rdf_pim.workspace
+        ~sub:webid ~pred: Rdf_pim.workspace
       in
       let f acc ws =
         match profile.G.objects_of
@@ -80,7 +79,7 @@ module Make (H: Ldp_http.Http) =
         | _ ->
             acc
       in
-      Lwt.return (List.fold_left f [] ws)
+      List.fold_left f [] ws
 
     let inbox profile =
       let sub = primary_topic profile in
