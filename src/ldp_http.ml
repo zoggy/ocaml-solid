@@ -18,6 +18,9 @@ let string_of_error fallback = function
 | Post_error (code, iri) ->
     Printf.sprintf "POST error (%d, %s)"
       code (Iri.to_string iri)
+| Get_error (-1, iri) ->
+    Printf.sprintf "GET error (empty body and content-type, %s)"
+      (Iri.to_string iri)
 | Get_error (code, iri) ->
     Printf.sprintf "GET error (%d, %s)"
       code (Iri.to_string iri)
@@ -151,7 +154,9 @@ module Http (P:Requests) =
         | Some str -> str
       in
       let%lwt body = Cohttp_lwt_body.to_string body in
-      Lwt.return (content_type, body)
+      match body, content_type with
+        "", "" -> error (Get_error (-1, iri))
+      | _ -> Lwt.return (content_type, body)
 
     let get_rdf ?g iri =
       let g =
