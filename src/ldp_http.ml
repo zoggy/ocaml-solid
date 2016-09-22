@@ -198,7 +198,12 @@ module Http (P:Requests) =
             try%lwt
               let g = Rdf_graph.open_graph iri in
               Rdf_ttl.from_string g body_s;
-              let resource = { meta = response_metadata iri (resp, body) ; graph = g } in
+              let resource = {
+                  meta = response_metadata iri (resp, body) ; 
+                  graph = g ;
+                  src = body_s ;
+                }
+              in
               if is_container g then
                 Lwt.return (Container resource)
               else

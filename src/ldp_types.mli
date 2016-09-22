@@ -14,6 +14,7 @@ type meta =
 type rdf_resource =
   { meta : meta ;
     graph: Rdf_graph.graph ;
+    src: string ;
   }
 
 type resource =
