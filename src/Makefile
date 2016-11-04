@@ -43,6 +43,7 @@ LIB_CMXFILES= \
 	ldp_types.cmx \
 	ldp_http.cmx \
 	solid_profile.cmx
+#	solid_webidrsa.cmx
 
 LIB_CMOFILES=$(LIB_CMXFILES:.cmx=.cmo)
 LIB_CMIFILES=$(LIB_CMXFILES:.cmx=.cmi)

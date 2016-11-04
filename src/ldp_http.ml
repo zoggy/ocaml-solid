@@ -159,17 +159,22 @@ module Http (P:Requests) =
       | _ -> Lwt.return (content_type, body)
 
     let get_rdf ?g iri =
-      let g =
-        match g with
-          None -> Rdf_graph.open_graph iri
-        | Some g -> g
-      in
       get_non_rdf ~accept: mime_turtle iri >>=
-        fun (_, str) ->
+      fun (mime_type, str) ->
           P.dbg str >>=
             fun () ->
-              Rdf_ttl.from_string g str;
-              Lwt.return g
+              let g =
+                match g with
+                  None -> Rdf_graph.open_graph (Iri.with_fragment iri None)
+                | Some g -> g
+              in
+              match mime_type with
+                s when s = mime_turtle ->
+                  Rdf_ttl.from_string g str;
+                  Lwt.return g
+              | _ ->
+                  Rdf_xml.from_string g str;
+                  Lwt.return g
 
     let get_container ?g iri = get_rdf ?g iri
 
@@ -199,7 +204,7 @@ module Http (P:Requests) =
               let g = Rdf_graph.open_graph iri in
               Rdf_ttl.from_string g body_s;
               let resource = {
-                  meta = response_metadata iri (resp, body) ; 
+                  meta = response_metadata iri (resp, body) ;
                   graph = g ;
                   src = body_s ;
                 }
