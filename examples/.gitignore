@@ -1,5 +1,5 @@
-tls_ls
-tls_get
-tls_put
+solid_tls
+solid_get
+solid_put
 containers.js
 

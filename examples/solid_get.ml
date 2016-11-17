@@ -21,4 +21,4 @@ let f args http =
       (if !print_type then Lwt_io.write_line Lwt_io.stdout ct else Lwt.return_unit)
       >>= fun () -> Lwt_io.write Lwt_io.stdout s
 
-let () = Tls_common.main ~options f
+let () = Solid_common.main ~options f
