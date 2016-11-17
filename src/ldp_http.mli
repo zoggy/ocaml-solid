@@ -31,12 +31,28 @@ module type Http =
     val dbg : string -> unit Lwt.t
     val head : Iri.t -> Ldp_types.meta Lwt.t
     val get_non_rdf : ?accept:string -> Iri.t -> (string * string) Lwt.t
-    val get_rdf : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
-    val get_container :
-     ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
+
+    (** Retrieve a RDF resource.
+      @return the resource contents and the optional graph. If
+      the graph had to be parsed and an error occured,
+      [Some (Error ..)] is returned.
+      If a graph was given, it may have been modified before the error
+      occured.
+      @param g A graph to fill by parsing the resource contents.
+      @param parse Indicate whether to parse
+        the resource contents to fill a new graph or the given one.
+        Default is [false] if no graph is given, else default is [true].
+    *)
+    val get_rdf : ?g:Rdf_graph.graph -> ?parse: bool -> Iri.t ->
+      (string * (Rdf_graph.graph, exn) result option) Lwt.t
+
+    val get_rdf_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
+    val get_container : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
     val is_container : Rdf_graph.graph -> bool
 
-    val get : Iri.t -> Ldp_types.resource Lwt.t
+    (** @param parse default is [true]. Parse or not the retrieved
+      resource if mime-type is text/turtle. *)
+    val get : ?parse: bool -> Iri.t -> Ldp_types.resource Lwt.t
 
     val post :
       ?data:string ->

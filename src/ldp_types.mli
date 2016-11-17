@@ -14,7 +14,7 @@ type meta =
 type rdf_resource =
   { meta : meta ;
     graph: Rdf_graph.graph ;
-    src: string ;
+    src: string * string ; (** mime-type * contents *)
   }
 
 type resource =

@@ -37,30 +37,30 @@ module Make (H: Ldp_http.Http) =
       | webid :: _ -> webid
 
     let get_profile iri =
-      H.get_rdf iri >>= fun g ->
-      let%lwt webid =
-        try Lwt.return (primary_topic g)
-        with e -> Lwt.fail e
-      in
-      let f sub acc pred =
-        let objs = G.iri_objects_of g ~sub ~pred in
-        objs @ acc
-      in
-      let to_load_preds =
-        [ Rdf_owl.sameAs ; Rdf_rdfs.seeAlso ; Rdf_pim.preferencesFile ]      
-      in
-      let to_load = List.fold_left (f (Rdf_term.Iri iri)) [] to_load_preds in
-      let to_load = List.fold_left (f webid) to_load to_load_preds in
-      let load iri =
-        let g = Rdf_graph.open_graph iri in
-        try%lwt H.get_rdf ~g iri
-        with Ldp_types.Error e ->
-            H.dbg (Ldp_types.string_of_error e) >>= fun () ->
-              Lwt.return g
-      in
-      let%lwt graphs = Lwt_list.map_p load to_load in
-      List.iter (Rdf_graph.merge g) graphs ;
-      Lwt.return g
+      H.get_rdf_graph iri >>= fun g ->
+        let%lwt webid =
+          try Lwt.return (primary_topic g)
+          with e -> Lwt.fail e
+        in
+        let f sub acc pred =
+          let objs = G.iri_objects_of g ~sub ~pred in
+          objs @ acc
+        in
+        let to_load_preds =
+          [ Rdf_owl.sameAs ; Rdf_rdfs.seeAlso ; Rdf_pim.preferencesFile ]
+        in
+        let to_load = List.fold_left (f (Rdf_term.Iri iri)) [] to_load_preds in
+        let to_load = List.fold_left (f webid) to_load to_load_preds in
+        let load iri =
+          let g = Rdf_graph.open_graph iri in
+          try%lwt H.get_rdf_graph ~g iri
+          with Ldp_types.Error e ->
+              H.dbg (Ldp_types.string_of_error e) >>= fun () ->
+                Lwt.return g
+        in
+        let%lwt graphs = Lwt_list.map_p load to_load in
+        List.iter (Rdf_graph.merge g) graphs ;
+        Lwt.return g
 
     let workspaces profile =
       let webid = primary_topic profile in

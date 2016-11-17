@@ -104,11 +104,12 @@ module type Http =
     val dbg : string -> unit Lwt.t
     val head : Iri.t -> Ldp_types.meta Lwt.t
     val get_non_rdf : ?accept:string -> Iri.t -> (string * string) Lwt.t
-    val get_rdf : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
-    val get_container :
-     ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
+    val get_rdf : ?g:Rdf_graph.graph -> ?parse:bool -> Iri.t ->
+      (string * (Rdf_graph.graph, exn) result option) Lwt.t
+    val get_rdf_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
+    val get_container : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
     val is_container : Rdf_graph.graph -> bool
-    val get : Iri.t -> Ldp_types.resource Lwt.t
+    val get : ?parse:bool -> Iri.t -> Ldp_types.resource Lwt.t
     val post :
       ?data:string ->
       ?mime:string ->
@@ -158,25 +159,40 @@ module Http (P:Requests) =
         "", "" -> error (Get_error (-1, iri))
       | _ -> Lwt.return (content_type, body)
 
-    let get_rdf ?g iri =
+    let get_rdf ?g ?(parse=(g<>None)) iri =
       get_non_rdf ~accept: mime_turtle iri >>=
       fun (mime_type, str) ->
           P.dbg str >>=
             fun () ->
-              let g =
-                match g with
-                  None -> Rdf_graph.open_graph (Iri.with_fragment iri None)
-                | Some g -> g
-              in
-              match mime_type with
-                s when s = mime_turtle ->
-                  Rdf_ttl.from_string g str;
-                  Lwt.return g
-              | _ ->
-                  Rdf_xml.from_string g str;
-                  Lwt.return g
+              if parse then
+                begin
+                  let g =
+                    match g with
+                      None -> Rdf_graph.open_graph (Iri.with_fragment iri None)
+                    | Some g -> g
+                  in
+                  try
+                    match mime_type with
+                      s when s = mime_turtle ->
+                        Rdf_ttl.from_string g str;
+                        Lwt.return (str, Some (Ok g))
+                    | _ ->
+                        Rdf_xml.from_string g str;
+                        Lwt.return (str, Some (Ok g))
+                  with
+                    e -> Lwt.return (str, Some (Pervasives.Error e))
+                end
+              else
+                Lwt.return (str, None)
 
-    let get_container ?g iri = get_rdf ?g iri
+
+    let get_rdf_graph ?g iri =
+      match%lwt get_rdf ?g ~parse: true iri with
+        | _, Some (Error e) -> Lwt.fail e
+        | _, Some (Ok g) -> Lwt.return g
+        | _ -> assert false
+
+    let get_container = get_rdf_graph
 
     let is_container g =
       let sub = Rdf_term.Iri (g.Rdf_graph.name ()) in
@@ -184,7 +200,7 @@ module Http (P:Requests) =
       e ~obj: (Rdf_term.Iri Ldp.c_BasicContainer) () ||
         e ~obj: (Rdf_term.Iri Ldp.c_Container) ()
 
-    let get iri =
+    let get ?(parse=true) iri =
       let headers = Header.init_with
         "Accept" (Printf.sprintf "%s, *" mime_turtle)
       in
@@ -198,7 +214,7 @@ module Http (P:Requests) =
       in
       let%lwt body_s = Cohttp_lwt_body.to_string body in
       match ct with
-      | str when str = mime_turtle ->
+      | str when str = mime_turtle && parse ->
           begin
             try%lwt
               let g = Rdf_graph.open_graph iri in
@@ -206,7 +222,7 @@ module Http (P:Requests) =
               let resource = {
                   meta = response_metadata iri (resp, body) ;
                   graph = g ;
-                  src = body_s ;
+                  src = (ct, body_s) ;
                 }
               in
               if is_container g then

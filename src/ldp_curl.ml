@@ -28,7 +28,7 @@ module Make (P:P) : Ldp_http.Requests =
         | `Eof -> Lwt.fail (Failure "Client connection was closed")
         | `Ok res -> begin
               let has_body = match meth with
-                | `HEAD -> `No
+                | `HEAD | `DELETE -> `No
                 | _ -> Response.has_body res
               in
               match has_body with
@@ -86,14 +86,14 @@ module Make (P:P) : Ldp_http.Requests =
       in
       let%lwt (resp, body) =
         match%lwt perform conn with
-          (Curl.CURLE_OK, str) -> 
+          (Curl.CURLE_OK, str) ->
             read_response
               ~closefn: (fun () -> Curl.cleanup conn)
               (Cohttp.String_io.open_in str)
               ()
               meth
-              
-        | (code, _) -> 
+
+        | (code, _) ->
             Curl.cleanup conn ;
             Lwt.fail_with (Curl.strerror code)
       in
