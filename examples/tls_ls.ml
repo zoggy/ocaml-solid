@@ -18,10 +18,14 @@ let string_of_tree tree =
 let f args http =
   match args with
     [] -> Lwt.return_unit
-  | iri :: _ ->
+  | iris ->
       let module H = (val http : Ldp_http.Http) in
       let module C = Ldp_containers.Make(H) in
-      let%lwt tree = C.containers (Iri.of_string iri) in
-      Lwt_io.write Lwt_io.stdout (string_of_tree tree)
+      let%lwt trees = Lwt_list.map_p
+        (fun iri -> C.containers (Iri.of_string iri)) iris
+      in
+      Lwt_list.iter_s
+        (fun t -> Lwt_io.write Lwt_io.stdout (string_of_tree t))
+        trees
 
 let () = Tls_common.main f

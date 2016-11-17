@@ -27,7 +27,7 @@ include ../master.Makefile
 
 OCAMLFIND=ocamlfind
 COMPFLAGS=-annot -safe-string -g
-OF_FLAGS=-package $(PACKAGES),$(JS_PACKAGES),$(TLS_PACKAGES)
+OF_FLAGS=-package $(PACKAGES),$(JS_PACKAGES),$(TLS_PACKAGES),$(CURL_PACKAGES)
 
 RM=rm -f
 CP=cp -f
@@ -42,6 +42,7 @@ LIB_CMI=$(LIB:.cmxa=.cmi)
 LIB_CMXFILES= \
 	ldp_types.cmx \
 	ldp_http.cmx \
+	ldp_cookies.cmx \
 	solid_profile.cmx
 #	solid_webidrsa.cmx
 
@@ -56,11 +57,24 @@ LIB_TLS_BYTE=$(LIB_TLS:.cmxa=.cma)
 LIB_TLS_CMI=$(LIB_TLS:.cmxa=.cmi)
 
 LIB_TLS_CMXFILES= \
-	ldp_tls.cmx \
+	ldp_tls.cmx
 
 LIB_TLS_CMOFILES=$(LIB_TLS_CMXFILES:.cmx=.cmo)
 LIB_TLS_CMIFILES=$(LIB_TLS_CMXFILES:.cmx=.cmi)
 LIB_TLS_OFILES=$(LIB_TLS_CMXFILES:.cmx=.o)
+
+LIB_CURL=solid_curl.cmxa
+LIB_CURL_CMXS=$(LIB_CURL:.cmxa=.cmxs)
+LIB_CURL_A=$(LIB_CURL:.cmxa=.a)
+LIB_CURL_BYTE=$(LIB_CURL:.cmxa=.cma)
+LIB_CURL_CMI=$(LIB_CURL:.cmxa=.cmi)
+
+LIB_CURL_CMXFILES= \
+	ldp_curl.cmx \
+
+LIB_CURL_CMOFILES=$(LIB_CURL_CMXFILES:.cmx=.cmo)
+LIB_CURL_CMIFILES=$(LIB_CURL_CMXFILES:.cmx=.cmi)
+LIB_CURL_OFILES=$(LIB_CURL_CMXFILES:.cmx=.o)
 
 LIB_JS=solid_js.cma
 LIB_JS_BYTE=$(LIB_JS)
@@ -73,8 +87,9 @@ LIB_JS_CMOFILES= \
 LIB_JS_CMIFILES=$(LIB_JS_CMOFILES:.cmo=.cmi)
 
 all: byte opt
-byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_JS)
-opt: $(LIB) $(LIB_CMXS) $(LIB_TLS) $(LIB_TLS_CMXS)
+byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_CURL_BYTE) $(LIB_JS)
+opt: $(LIB) $(LIB_CMXS) $(LIB_TLS) $(LIB_TLS_CMXS) \
+	$(LIB_CURL) $(LIB_CURL_CMXS)
 
 $(LIB): $(LIB_CMIFILES) $(LIB_CMXFILES)
 	$(OCAMLFIND) ocamlopt -o $@ -a $(LIB_CMXFILES)
@@ -93,6 +108,15 @@ $(LIB_TLS_CMXS): $(LIB_TLS_CMIFILES) $(LIB_TLS_CMXFILES)
 
 $(LIB_TLS_BYTE): $(LIB_TLS_CMIFILES) $(LIB_TLS_CMOFILES)
 	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_TLS_CMOFILES)
+
+$(LIB_CURL): $(LIB_CURL_CMIFILES) $(LIB_CURL_CMXFILES)
+	$(OCAMLFIND) ocamlopt -o $@ -a $(LIB_CURL_CMXFILES)
+
+$(LIB_CURL_CMXS): $(LIB_CURL_CMIFILES) $(LIB_CURL_CMXFILES)
+	$(OCAMLFIND) ocamlopt -shared -o $@ $(LIB_CURL_CMXFILES)
+
+$(LIB_CURL_BYTE): $(LIB_CURL_CMIFILES) $(LIB_CURL_CMOFILES)
+	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_CURL_CMOFILES)
 
 $(LIB_JS): $(LIB_JS_CMIFILES) $(LIB_JS_CMOFILES)
 	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_JS_CMOFILES)
@@ -120,6 +144,8 @@ install: byte opt
 		$(LIB_BYTE) $(LIB_CMIFILES) $(LIB_CMIFILES:.cmi=.mli) \
 		$(LIB_TLS) $(LIB_TLS_CMXS) $(LIB_TLS_OFILES) $(LIB_TLS_CMXFILES) $(LIB_TLS_A) \
 		$(LIB_TLS_BYTE) $(LIB_TLS_CMIFILES) $(LIB_TLS_CMIFILES:.cmi=.mli) \
+		$(LIB_CURL) $(LIB_CURL_CMXS) $(LIB_CURL_OFILES) $(LIB_CURL_CMXFILES) $(LIB_CURL_A) \
+		$(LIB_CURL_BYTE) $(LIB_CURL_CMIFILES) $(LIB_CURL_CMIFILES:.cmi=.mli) \
 		$(LIB_JS) $(LIB_JS_CMIFILES) $(LIB_JS_CMIFILES:.cmi=.mli)
 
 uninstall:

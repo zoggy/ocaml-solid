@@ -14,6 +14,15 @@ package "tls" (
   archive(native,plugin) = "solid_tls.cmxs"
 )
 
+package "curl" (
+  version = "@VERSION@"
+  description = "LDP and SOLID with OCaml - Library to use ocurl"
+  requires = "solid,@CURL_PACKAGES@"
+  archive(byte) = "solid_curl.cma"
+  archive(native) = "solid_curl.cmxa"
+  archive(native,plugin) = "solid_curl.cmxs"
+)
+
 package "js" (
   version = "@VERSION@"
   description = "LDP and SOLID with OCaml - Library to compile to Javascript"
