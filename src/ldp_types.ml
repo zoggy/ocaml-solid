@@ -45,6 +45,7 @@ let register_string_of_error f =
 type error +=
   | Invalid_method of string
   | Missing_pred of Iri.t * Iri.t
+  | Request_error of Iri.t * string
 
 let () = register_string_of_error
   (fun fallback -> function
@@ -52,6 +53,9 @@ let () = register_string_of_error
      | Missing_pred (sub, pred) ->
          Printf.sprintf "%s has no relation with predicate %s"
            (Iri.to_string sub) (Iri.to_string pred)
+     | Request_error (iri, msg) ->
+         Printf.sprintf "%s: %s"
+           (Iri.to_string iri) msg
      | e -> fallback e
   )
 

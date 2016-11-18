@@ -87,15 +87,22 @@ module Make (P:P) : Ldp_http.Requests =
       let%lwt (resp, body) =
         match%lwt perform conn with
           (Curl.CURLE_OK, str) ->
-            read_response
-              ~closefn: (fun () -> Curl.cleanup conn)
-              (Cohttp.String_io.open_in str)
-              ()
-              meth
-
+            begin
+              let code = Curl.get_responsecode conn in
+              match code / 100 with
+                2 ->
+                  read_response
+                    ~closefn: (fun () -> Curl.cleanup conn)
+                    (Cohttp.String_io.open_in str)
+                    ()
+                    meth
+              | _ ->
+                  Curl.cleanup conn ;
+                  Ldp_types.(fail (Request_error (iri, string_of_int code)))
+            end
         | (code, _) ->
             Curl.cleanup conn ;
-            Lwt.fail_with (Curl.strerror code)
+            Ldp_types.(fail (Request_error (iri, Curl.strerror code)))
       in
       let () =
         let cookies = Cohttp.Cookie.Set_cookie_hdr.extract resp.Cohttp.Response.headers in

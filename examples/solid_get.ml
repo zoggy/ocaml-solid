@@ -29,9 +29,14 @@ let is_prefix ~s ~pref =
 let rec rec_get http ~dir ?basename iri =
   let module H = (val http : Ldp_http.Http) in
   let open Ldp_types in
-  let rec iter dir iri =
+  let rec iter dir ?(parse=true) iri =
     let%lwt () = Lwt_io.(write_line stderr (Printf.sprintf "get %s" (Iri.to_string iri))) in
-    match%lwt H.get ~parse: true iri with
+    match%lwt H.get ~parse iri with
+    | exception Ldp_types.Error e ->
+       let msg = Ldp_types.string_of_error e in
+       let%lwt () = Lwt_io.(write_line stderr msg) in
+        if parse then iter dir ~parse: false iri else Lwt.return_unit
+
     | Ldp_types.Container r ->
         let dir = Filename.concat dir (iri_base ?basename r.meta.iri) in
         let%lwt () = mkdir dir in
