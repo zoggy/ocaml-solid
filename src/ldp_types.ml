@@ -43,9 +43,11 @@ let register_string_of_error f =
   ref_string_of_error := f g
 
 type error +=
-  | Invalid_method of string
-  | Missing_pred of Iri.t * Iri.t
-  | Request_error of Iri.t * string
+| Invalid_method of string
+| Missing_pred of Iri.t * Iri.t
+| Request_error of Iri.t * string
+| Parse_error of Iri.t * exn
+| Unsupported_format of Iri.t * string
 
 let () = register_string_of_error
   (fun fallback -> function
@@ -56,6 +58,12 @@ let () = register_string_of_error
      | Request_error (iri, msg) ->
          Printf.sprintf "%s: %s"
            (Iri.to_string iri) msg
+     | Parse_error (iri, exn) ->
+         Printf.sprintf "%s: %s"
+           (Iri.to_string iri) (Printexc.to_string exn)
+     | Unsupported_format (iri, str) ->
+         Printf.sprintf "%s: unsupported format %S"
+           (Iri.to_string iri) str
      | e -> fallback e
   )
 

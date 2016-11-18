@@ -44,7 +44,7 @@ module type Http =
         Default is [false] if no graph is given, else default is [true].
     *)
     val get_rdf : ?g:Rdf_graph.graph -> ?parse: bool -> Iri.t ->
-      (string * (Rdf_graph.graph, exn) result option) Lwt.t
+      (string * (Rdf_graph.graph, Ldp_types.error) result option) Lwt.t
 
     val get_rdf_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
     val get_container : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t

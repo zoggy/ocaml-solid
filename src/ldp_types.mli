@@ -34,7 +34,9 @@ val register_string_of_error : ((error -> string) -> error -> string) -> unit
 type error +=
 | Invalid_method of string
 | Missing_pred of Iri.t * Iri.t
-| Request_error of Iri.t * string
+| Request_error of Iri.t * string (* with an exception ?? *)
+| Parse_error of Iri.t * exn
+| Unsupported_format of Iri.t * string
 
 val split_string : ?keep_empty:bool -> string -> char list -> string list
 val methods_of_string : string -> Code.meth list

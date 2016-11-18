@@ -32,10 +32,16 @@ let rec rec_get http ~dir ?basename iri =
   let rec iter dir ?(parse=true) iri =
     let%lwt () = Lwt_io.(write_line stderr (Printf.sprintf "get %s" (Iri.to_string iri))) in
     match%lwt H.get ~parse iri with
-    | exception Ldp_types.Error e ->
-       let msg = Ldp_types.string_of_error e in
-       let%lwt () = Lwt_io.(write_line stderr msg) in
-        if parse then iter dir ~parse: false iri else Lwt.return_unit
+    | exception (Ldp_types.Error e) ->
+        begin
+          let msg = Ldp_types.string_of_error e in
+          match e with
+          | Ldp_types.Parse_error _
+          | Ldp_types.Unsupported_format _ ->
+              let%lwt () = Lwt_io.(write_line stderr msg) in
+              if parse then iter dir ~parse: false iri else Lwt.return_unit
+          | _ -> Lwt.return_unit
+        end
 
     | Ldp_types.Container r ->
         let dir = Filename.concat dir (iri_base ?basename r.meta.iri) in

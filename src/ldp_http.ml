@@ -41,6 +41,7 @@ let map_opt f = function None -> None | Some x -> Some (f x)
 let do_opt f = function None -> () | Some x -> f x
 
 let mime_turtle = "text/turtle"
+let mime_xmlrdf = "text/xml+rdf"
 
 let get_link links rel =
   try Some (List.assoc rel links)
@@ -105,7 +106,7 @@ module type Http =
     val head : Iri.t -> Ldp_types.meta Lwt.t
     val get_non_rdf : ?accept:string -> Iri.t -> (string * string) Lwt.t
     val get_rdf : ?g:Rdf_graph.graph -> ?parse:bool -> Iri.t ->
-      (string * (Rdf_graph.graph, exn) result option) Lwt.t
+      (string * (Rdf_graph.graph, Ldp_types.error) result option) Lwt.t
     val get_rdf_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
     val get_container : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
     val is_container : Rdf_graph.graph -> bool
@@ -159,36 +160,41 @@ module Http (P:Requests) =
         "", "" -> error (Get_error (-1, iri))
       | _ -> Lwt.return (content_type, body)
 
+    let parse_graph ?g iri mime_type str =
+      let g =
+        match g with
+          None -> Rdf_graph.open_graph (Iri.with_fragment iri None)
+        | Some g -> g
+      in
+      match mime_type with
+      | s when s = mime_turtle ->
+          begin
+            try Rdf_ttl.from_string g str; Ok g
+            with e ->
+                Pervasives.Error (Ldp_types.Parse_error (iri, e))
+          end
+      | s when s = mime_xmlrdf ->
+          begin
+            try Rdf_xml.from_string g str; Ok g
+            with e ->
+                Pervasives.Error (Ldp_types.Parse_error (iri, e))
+          end
+      | _ -> Pervasives.Error (Ldp_types.Unsupported_format (iri, mime_type))
+
     let get_rdf ?g ?(parse=(g<>None)) iri =
       get_non_rdf ~accept: mime_turtle iri >>=
       fun (mime_type, str) ->
           P.dbg str >>=
             fun () ->
               if parse then
-                begin
-                  let g =
-                    match g with
-                      None -> Rdf_graph.open_graph (Iri.with_fragment iri None)
-                    | Some g -> g
-                  in
-                  try
-                    match mime_type with
-                      s when s = mime_turtle ->
-                        Rdf_ttl.from_string g str;
-                        Lwt.return (str, Some (Ok g))
-                    | _ ->
-                        Rdf_xml.from_string g str;
-                        Lwt.return (str, Some (Ok g))
-                  with
-                    e -> Lwt.return (str, Some (Pervasives.Error e))
-                end
+                let res = parse_graph ?g iri mime_type str in
+                Lwt.return (str, Some res)
               else
                 Lwt.return (str, None)
 
-
     let get_rdf_graph ?g iri =
       match%lwt get_rdf ?g ~parse: true iri with
-        | _, Some (Error e) -> Lwt.fail e
+        | _, Some (Error e) -> Ldp_types.fail e
         | _, Some (Ok g) -> Lwt.return g
         | _ -> assert false
 
@@ -214,24 +220,20 @@ module Http (P:Requests) =
       in
       let%lwt body_s = Cohttp_lwt_body.to_string body in
       match ct with
-      | str when str = mime_turtle && parse ->
+      | mime when parse &&
+          (mime = mime_turtle || mime = mime_xmlrdf) ->
+          let meta = response_metadata iri (resp, body) in
+          let src = (ct, body_s) in
+          let g = Rdf_graph.open_graph iri in
           begin
-            try%lwt
-              let g = Rdf_graph.open_graph iri in
-              Rdf_ttl.from_string g body_s;
-              let resource = {
-                  meta = response_metadata iri (resp, body) ;
-                  graph = g ;
-                  src = (ct, body_s) ;
-                }
-              in
-              if is_container g then
-                Lwt.return (Container resource)
-              else
-                Lwt.return (Rdf resource)
-            with (Rdf_ttl.Error err) as e ->
-                P.dbg (Rdf_ttl.string_of_error err) >>= fun () ->
-                  Lwt.fail e
+            match parse_graph ~g iri mime body_s with
+              Pervasives.Error e -> Ldp_types.fail e
+            | Ok g ->
+                let resource = { meta ; graph = g ; src } in
+                if is_container g then
+                  Lwt.return (Container resource)
+                else
+                  Lwt.return (Rdf resource)
           end
       | _ ->
           Lwt.return (Non_rdf (ct, Some body_s))
