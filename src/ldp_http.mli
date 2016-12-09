@@ -26,6 +26,24 @@ module type Requests =
 
 val response_metadata : Iri.t -> (Response.t * Cohttp_lwt_body.t) -> Ldp_types.meta
 
+module type Cache =
+  sig
+    val get :
+      (?headers: Header.t -> Iri.t ->
+       (Response.t * Cohttp_lwt_body.t) Lwt.t) ->
+        ?headers:Header.t -> Iri.t -> (Response.t * string) Lwt.t
+  end
+
+module type Cache_impl =
+  sig
+    type key
+    val key : Header.t -> Iri.t -> key option
+    val store : key -> string -> unit Lwt.t
+    val find : key -> string option Lwt.t
+  end
+
+module Make_cache (I:Cache_impl) : Cache
+
 module type Http =
   sig
     val dbg : string -> unit Lwt.t
@@ -87,4 +105,5 @@ module type Http =
     val login : Iri.t -> string option Lwt.t
   end
 
+module Cached_http : Cache -> Requests -> Http
 module Http : Requests -> Http

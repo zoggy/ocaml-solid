@@ -137,11 +137,67 @@ module type Http =
     val login : Iri.t -> string option Lwt.t
   end
 
-module Http (P:Requests) =
+module type Cache =
+  sig
+    val get :
+      (?headers: Header.t -> Iri.t ->
+       (Response.t * Cohttp_lwt_body.t) Lwt.t) ->
+        ?headers:Header.t -> Iri.t -> (Response.t * string) Lwt.t
+  end
+
+module type Cache_impl =
+  sig
+    type key
+    val key : Header.t -> Iri.t -> key option
+    val store : key -> string -> unit Lwt.t
+    val find : key -> string option Lwt.t
+  end
+
+module Make_cache (I:Cache_impl) : Cache =
+  struct
+    let empty_headers = Header.init ()
+
+    let get (call_get : ?headers: Header.t -> Iri.t -> (Response.t * Cohttp_lwt_body.t) Lwt.t)
+      ?(headers=empty_headers) iri =
+      let headers_nocookie = Header.remove headers "cookie" in
+      match I.key headers_nocookie iri with
+        None ->
+          let%lwt (resp, body) = call_get ~headers iri in
+          let%lwt body = Cohttp_lwt_body.to_string body in
+          Lwt.return (resp, body)
+      | Some key ->
+          match%lwt I.find key with
+            Some marshalled ->
+              Lwt.return (Marshal.from_string marshalled 0)
+          | None ->
+              let%lwt (resp, body) = call_get ~headers iri in
+              let%lwt body = Cohttp_lwt_body.to_string body in
+              match (Code.code_of_status resp.Response.status) / 100 with
+              | 2 ->
+                  let marshalled = Marshal.to_string (resp, body) [] in
+                  let%lwt () = I.store key marshalled in
+                  Lwt.return (resp, body)
+              | _ ->
+                  Lwt.return (resp, body)
+  end
+
+module No_cache = Make_cache
+  (struct
+    type key = unit
+    let key _ _ = None
+    let store _ _ = assert false
+    let find _ = assert false
+   end)
+
+module Cached_http (C:Cache) (P:Requests) =
   struct
     let dbg = P.dbg
 
     let head iri = P.call `HEAD iri >|= response_metadata iri
+
+    let cached_get =
+      let call_get ?headers iri = P.call ?headers `GET iri in
+      C.get call_get
 
     let get_non_rdf ?accept iri =
       let headers =
@@ -149,13 +205,12 @@ module Http (P:Requests) =
           None -> None
         | Some str -> Some (Header.init_with "Accept" str)
       in
-      P.call ?headers `GET iri >>= fun (resp, body) ->
+      cached_get ?headers iri >>= fun (resp, body) ->
       let content_type =
         match Header.get resp.Response.headers "Content-type" with
           None -> ""
         | Some str -> str
       in
-      let%lwt body = Cohttp_lwt_body.to_string body in
       match body, content_type with
         "", "" -> error (Get_error (-1, iri))
       | _ -> Lwt.return (content_type, body)
@@ -210,23 +265,23 @@ module Http (P:Requests) =
       let headers = Header.init_with
         "Accept" (Printf.sprintf "%s, *" mime_turtle)
       in
-      P.call ~headers `GET iri
-      >>= fun (resp, body) ->
+      cached_get ~headers iri >>= fun (resp, body) ->
       let header = resp.Response.headers in
       let ct =
         match Header.get header "Content-type" with
           None -> ""
         | Some s -> s
       in
-      let%lwt body_s = Cohttp_lwt_body.to_string body in
       match ct with
       | mime when parse &&
           (mime = mime_turtle || mime = mime_xmlrdf) ->
-          let meta = response_metadata iri (resp, body) in
-          let src = (ct, body_s) in
+          let meta = response_metadata iri
+            (resp, Cohttp_lwt_body.of_string body)
+          in
+          let src = (ct, body) in
           let g = Rdf_graph.open_graph iri in
           begin
-            match parse_graph ~g iri mime body_s with
+            match parse_graph ~g iri mime body with
               Pervasives.Error e -> Ldp_types.fail e
             | Ok g ->
                 let resource = { meta ; graph = g ; src } in
@@ -236,7 +291,7 @@ module Http (P:Requests) =
                   Lwt.return (Rdf resource)
           end
       | _ ->
-          Lwt.return (Non_rdf (ct, Some body_s))
+          Lwt.return (Non_rdf (ct, Some body))
 
     let post ?data ?(mime=mime_turtle) ?slug ~typ iri =
       let headers =
@@ -383,3 +438,5 @@ module Http (P:Requests) =
         head iri >>= fun meta -> Lwt.return meta.user
 
   end
+
+module Http (P:Requests) = Cached_http (No_cache) (P)
