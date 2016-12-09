@@ -1,3 +1,5 @@
+ldp_cache.cmo : ldp_http.cmi ldp_cache.cmi
+ldp_cache.cmx : ldp_http.cmx ldp_cache.cmi
 ldp_cookies.cmo : ldp_cookies.cmi
 ldp_cookies.cmx : ldp_cookies.cmi
 ldp_curl.cmo : ldp_http.cmi ldp_cookies.cmi ldp_curl.cmi
@@ -18,6 +20,7 @@ solid_webidrsa.cmo : ldp_http.cmi
 solid_webidrsa.cmx : ldp_http.cmx
 test_solid.cmo : ldp_types.cmi ldp_http.cmi
 test_solid.cmx : ldp_types.cmx ldp_http.cmx
+ldp_cache.cmi : ldp_http.cmi
 ldp_cookies.cmi :
 ldp_curl.cmi : ldp_http.cmi
 ldp_http.cmi : ldp_types.cmi

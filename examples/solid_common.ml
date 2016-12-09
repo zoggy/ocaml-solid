@@ -2,7 +2,7 @@ open Lwt.Infix
 
 let usage = Printf.sprintf "Usage: %s [options] [args]\nwhere options are:" Sys.argv.(0)
 
-let ldp_http_curl ~cert ~priv_key =
+let ldp_http_curl ?cache ~cert ~priv_key =
   let module P =
   struct
     let dbg = Lwt_io.write_line Lwt_io.stderr
@@ -10,10 +10,16 @@ let ldp_http_curl ~cert ~priv_key =
     let key = priv_key
   end
   in
-  let module H = Ldp_http.Http (Ldp_curl.Make(P)) in
+  let%lwt cache =
+    match cache with
+      None -> Lwt.return (module Ldp_http.No_cache : Ldp_http.Cache)
+    | Some dir -> Ldp_cache.of_dir dir
+  in
+  let module C = (val cache: Ldp_http.Cache) in
+  let module H = Ldp_http.Cached_http (C) (Ldp_curl.Make(P)) in
   Lwt.return (module H : Ldp_http.Http)
 
-let ldp_http_tls ~cert ~priv_key ~cert_dir =
+let ldp_http_tls ?cache ~cert ~priv_key ~cert_dir =
   let%lwt authenticator = X509_lwt.authenticator `No_authentication_I'M_STUPID in
 (*  let%lwt authenticator = X509_lwt.authenticator (`Ca_dir cert_dir) in*)
   let%lwt certificates = X509_lwt.private_of_pems ~cert ~priv_key >>=
@@ -26,7 +32,13 @@ let ldp_http_tls ~cert ~priv_key ~cert_dir =
     let certificates = certificates
   end
   in
-  let module H = Ldp_http.Http (Ldp_tls.Make(P)) in
+  let%lwt cache =
+    match cache with
+      None -> Lwt.return (module Ldp_http.No_cache : Ldp_http.Cache)
+    | Some dir -> Ldp_cache.of_dir dir
+  in
+  let module C = (val cache: Ldp_http.Cache) in
+  let module H = Ldp_http.Cached_http (C) (Ldp_tls.Make(P)) in
   Lwt.return (module H : Ldp_http.Http)
 
 let parse ?(options=[]) ?(usage=usage) () =
@@ -34,6 +46,7 @@ let parse ?(options=[]) ?(usage=usage) () =
   let cert_pem = ref "client.pem" in
   let server_cert_dir = ref "certificates" in
   let curl = ref false in
+  let cache = ref None in
   let tls_options =
     [ "--privkey", Arg.Set_string priv_key,
       Printf.sprintf " <file> read private client key from <file> (default is %s)"
@@ -50,15 +63,20 @@ let parse ?(options=[]) ?(usage=usage) () =
 
       "--curl", Arg.Set curl,
         " use curl instead of cohttp+tls to connect" ;
+
+      "--cache", Arg.String (fun s -> cache := Some s),
+      " <dir> use <dir> as cache directory" ;
     ]
   in
   let args = ref [] in
   Arg.parse (tls_options @ options) (fun s -> args := s :: !args) usage ;
   let%lwt http =
     if !curl then
-      ldp_http_curl ~cert: !cert_pem ~priv_key: !priv_key
+      ldp_http_curl ?cache: !cache
+        ~cert: !cert_pem ~priv_key: !priv_key
     else
-      ldp_http_tls ~cert: !cert_pem ~priv_key: !priv_key ~cert_dir: !server_cert_dir
+      ldp_http_tls ?cache: !cache
+        ~cert: !cert_pem ~priv_key: !priv_key ~cert_dir: !server_cert_dir
   in
   Lwt.return (List.rev !args, http)
 
@@ -80,6 +98,8 @@ let main ?options ?usage f =
       let%lwt (args, http) = parse ?options ?usage () in
       f args http
     with
+    | Ldp_types.Error e ->
+       Lwt_io.(write_line stderr (Ldp_types.string_of_error e))
     | Tls_lwt.Tls_alert alert ->
         print_alert "remote end" alert >>= fun () -> exit 1
     | Tls_lwt.Tls_failure alert ->

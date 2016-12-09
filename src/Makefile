@@ -33,6 +33,17 @@ RM=rm -f
 CP=cp -f
 MKDIR=mkdir -p
 
+COMMON_CMXFILES= \
+	ldp_types.cmx \
+	ldp_http.cmx \
+	ldp_cookies.cmx \
+	solid_profile.cmx
+#	solid_webidrsa.cmx
+
+COMMON_CMOFILES=$(COMMON_CMXFILES:.cmx=.cmo)
+COMMON_CMIFILES=$(COMMON_CMXFILES:.cmx=.cmi)
+COMMON_OFILES=$(COMMON_CMXFILES:.cmx=.o)
+
 LIB=solid.cmxa
 LIB_CMXS=$(LIB:.cmxa=.cmxs)
 LIB_A=$(LIB:.cmxa=.a)
@@ -40,11 +51,8 @@ LIB_BYTE=$(LIB:.cmxa=.cma)
 LIB_CMI=$(LIB:.cmxa=.cmi)
 
 LIB_CMXFILES= \
-	ldp_types.cmx \
-	ldp_http.cmx \
-	ldp_cookies.cmx \
-	solid_profile.cmx
-#	solid_webidrsa.cmx
+	$(COMMON_CMXFILES) \
+	ldp_cache.cmx
 
 LIB_CMOFILES=$(LIB_CMXFILES:.cmx=.cmo)
 LIB_CMIFILES=$(LIB_CMXFILES:.cmx=.cmi)
@@ -81,7 +89,7 @@ LIB_JS_BYTE=$(LIB_JS)
 LIB_JS_CMI=$(LIB_JS:.cma=.cmi)
 
 LIB_JS_CMOFILES= \
-	$(LIB_CMOFILES) \
+	$(COMMON_CMOFILES) \
 	ldp_js.cmo \
 	solid_updates.cmo
 LIB_JS_CMIFILES=$(LIB_JS_CMOFILES:.cmo=.cmi)

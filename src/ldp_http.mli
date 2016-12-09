@@ -28,6 +28,7 @@ val response_metadata : Iri.t -> (Response.t * Cohttp_lwt_body.t) -> Ldp_types.m
 
 module type Cache =
   sig
+    val clear : unit -> unit Lwt.t
     val get :
       (?headers: Header.t -> Iri.t ->
        (Response.t * Cohttp_lwt_body.t) Lwt.t) ->
@@ -37,12 +38,15 @@ module type Cache =
 module type Cache_impl =
   sig
     type key
+    val clear : unit -> unit Lwt.t
     val key : Header.t -> Iri.t -> key option
     val store : key -> string -> unit Lwt.t
     val find : key -> string option Lwt.t
   end
 
 module Make_cache (I:Cache_impl) : Cache
+
+module No_cache : Cache
 
 module type Http =
   sig

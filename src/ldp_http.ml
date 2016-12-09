@@ -139,6 +139,7 @@ module type Http =
 
 module type Cache =
   sig
+    val clear : unit -> unit Lwt.t
     val get :
       (?headers: Header.t -> Iri.t ->
        (Response.t * Cohttp_lwt_body.t) Lwt.t) ->
@@ -148,6 +149,7 @@ module type Cache =
 module type Cache_impl =
   sig
     type key
+    val clear : unit -> unit Lwt.t
     val key : Header.t -> Iri.t -> key option
     val store : key -> string -> unit Lwt.t
     val find : key -> string option Lwt.t
@@ -157,6 +159,7 @@ module Make_cache (I:Cache_impl) : Cache =
   struct
     let empty_headers = Header.init ()
 
+    let clear = I.clear
     let get (call_get : ?headers: Header.t -> Iri.t -> (Response.t * Cohttp_lwt_body.t) Lwt.t)
       ?(headers=empty_headers) iri =
       let headers_nocookie = Header.remove headers "cookie" in
@@ -184,6 +187,7 @@ module Make_cache (I:Cache_impl) : Cache =
 module No_cache = Make_cache
   (struct
     type key = unit
+    let clear () = Lwt.return_unit
     let key _ _ = None
     let store _ _ = assert false
     let find _ = assert false
