@@ -105,12 +105,15 @@ module type Http =
     val dbg : string -> unit Lwt.t
     val head : Iri.t -> Ldp_types.meta Lwt.t
     val get_non_rdf : ?accept:string -> Iri.t -> (string * string) Lwt.t
-    val get_rdf : ?g:Rdf_graph.graph -> ?parse:bool -> Iri.t ->
-      (string * (Rdf_graph.graph, Ldp_types.error) result option) Lwt.t
-    val get_rdf_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
-    val get_container : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
+    val get_rdf : ?g:Rdf_graph.graph ->
+      ?accept:string -> ?parse:bool -> Iri.t ->
+        (string * (Rdf_graph.graph, Ldp_types.error) result option) Lwt.t
+    val get_rdf_graph : ?g:Rdf_graph.graph ->
+      ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
+    val get_container : ?g:Rdf_graph.graph ->
+      ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
     val is_container : Rdf_graph.graph -> bool
-    val get : ?parse:bool -> Iri.t -> Ldp_types.resource Lwt.t
+    val get : ?accept:string -> ?parse:bool -> Iri.t -> Ldp_types.resource Lwt.t
     val post :
       ?data:string ->
       ?mime:string ->
@@ -240,8 +243,8 @@ module Cached_http (C:Cache) (P:Requests) =
           end
       | _ -> Pervasives.Error (Ldp_types.Unsupported_format (iri, mime_type))
 
-    let get_rdf ?g ?(parse=(g<>None)) iri =
-      get_non_rdf ~accept: mime_turtle iri >>=
+    let get_rdf ?g ?(accept=mime_turtle) ?(parse=(g<>None)) iri =
+      get_non_rdf ~accept iri >>=
       fun (mime_type, str) ->
           P.dbg str >>=
             fun () ->
@@ -251,8 +254,8 @@ module Cached_http (C:Cache) (P:Requests) =
               else
                 Lwt.return (str, None)
 
-    let get_rdf_graph ?g iri =
-      match%lwt get_rdf ?g ~parse: true iri with
+    let get_rdf_graph ?g ?accept iri =
+      match%lwt get_rdf ?g ?accept ~parse: true iri with
         | _, Some (Error e) -> Ldp_types.fail e
         | _, Some (Ok g) -> Lwt.return g
         | _ -> assert false
@@ -265,10 +268,8 @@ module Cached_http (C:Cache) (P:Requests) =
       e ~obj: (Rdf_term.Iri Ldp.c_BasicContainer) () ||
         e ~obj: (Rdf_term.Iri Ldp.c_Container) ()
 
-    let get ?(parse=true) iri =
-      let headers = Header.init_with
-        "Accept" (Printf.sprintf "%s, *" mime_turtle)
-      in
+    let get ?(accept=Printf.sprintf "%s, *" mime_turtle) ?(parse=true) iri =
+      let headers = Header.init_with "Accept" accept in
       cached_get ~headers iri >>= fun (resp, body) ->
       let header = resp.Response.headers in
       let ct =

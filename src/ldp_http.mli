@@ -65,16 +65,20 @@ module type Http =
         the resource contents to fill a new graph or the given one.
         Default is [false] if no graph is given, else default is [true].
     *)
-    val get_rdf : ?g:Rdf_graph.graph -> ?parse: bool -> Iri.t ->
-      (string * (Rdf_graph.graph, Ldp_types.error) result option) Lwt.t
+    val get_rdf : ?g:Rdf_graph.graph ->
+      ?accept:string -> ?parse: bool -> Iri.t ->
+        (string * (Rdf_graph.graph, Ldp_types.error) result option) Lwt.t
 
-    val get_rdf_graph : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
-    val get_container : ?g:Rdf_graph.graph -> Iri.t -> Rdf_graph.graph Lwt.t
+    val get_rdf_graph : ?g:Rdf_graph.graph ->
+      ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
+    val get_container : ?g:Rdf_graph.graph ->
+      ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
+
     val is_container : Rdf_graph.graph -> bool
 
     (** @param parse default is [true]. Parse or not the retrieved
       resource if mime-type is text/turtle. *)
-    val get : ?parse: bool -> Iri.t -> Ldp_types.resource Lwt.t
+    val get : ?accept:string -> ?parse:bool -> Iri.t -> Ldp_types.resource Lwt.t
 
     val post :
       ?data:string ->
