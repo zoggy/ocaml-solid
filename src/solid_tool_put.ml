@@ -41,4 +41,4 @@ let f args http =
       let msg = Ldp_types.string_of_error e in
       Lwt_io.write Lwt_io.stderr msg
 
-let () = Solid_common.main ~options f
+let () = Solid_tool_common.main ~options f

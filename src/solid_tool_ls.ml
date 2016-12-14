@@ -28,4 +28,4 @@ let f args http =
         (fun t -> Lwt_io.write Lwt_io.stdout (string_of_tree t))
         trees
 
-let () = Solid_common.main f
+let () = Solid_tool_common.main f

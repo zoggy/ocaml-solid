@@ -139,4 +139,4 @@ let f args http =
         get_and_print http
           ~print_type: !print_type ~raw: !raw ?output: !output iri
 
-let () = Solid_common.main ~options f
+let () = Solid_tool_common.main ~options f

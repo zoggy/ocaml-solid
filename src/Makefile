@@ -37,6 +37,7 @@ COMMON_CMXFILES= \
 	ldp_types.cmx \
 	ldp_http.cmx \
 	ldp_cookies.cmx \
+	ldp_containers.cmx \
 	solid_profile.cmx
 #	solid_webidrsa.cmx
 
@@ -94,10 +95,13 @@ LIB_JS_CMOFILES= \
 	solid_updates.cmo
 LIB_JS_CMIFILES=$(LIB_JS_CMOFILES:.cmo=.cmi)
 
+TOOLS=solid_ls solid_get solid_put solid_delete
+
 all: byte opt
 byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_CURL_BYTE) $(LIB_JS)
 opt: $(LIB) $(LIB_CMXS) $(LIB_TLS) $(LIB_TLS_CMXS) \
-	$(LIB_CURL) $(LIB_CURL_CMXS)
+	$(LIB_CURL) $(LIB_CURL_CMXS) tools
+tools:$(TOOLS)
 
 $(LIB): $(LIB_CMIFILES) $(LIB_CMXFILES)
 	$(OCAMLFIND) ocamlopt -o $@ -a $(LIB_CMXFILES)
@@ -129,6 +133,18 @@ $(LIB_CURL_BYTE): $(LIB_CURL_CMIFILES) $(LIB_CURL_CMOFILES)
 $(LIB_JS): $(LIB_JS_CMIFILES) $(LIB_JS_CMOFILES)
 	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_JS_CMOFILES)
 
+solid_ls: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_ls.cmx
+	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
+
+solid_get: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_get.cmx
+	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
+
+solid_put: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_put.cmx
+	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
+
+solid_delete: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_delete.cmx
+	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
+
 ##########
 .PHONY: doc
 dump.odoc:
@@ -154,7 +170,8 @@ install: byte opt
 		$(LIB_TLS_BYTE) $(LIB_TLS_CMIFILES) $(LIB_TLS_CMIFILES:.cmi=.mli) \
 		$(LIB_CURL) $(LIB_CURL_CMXS) $(LIB_CURL_OFILES) $(LIB_CURL_CMXFILES) $(LIB_CURL_A) \
 		$(LIB_CURL_BYTE) $(LIB_CURL_CMIFILES) $(LIB_CURL_CMIFILES:.cmi=.mli) \
-		$(LIB_JS) $(LIB_JS_CMIFILES) $(LIB_JS_CMIFILES:.cmi=.mli)
+		$(LIB_JS) $(LIB_JS_CMIFILES) $(LIB_JS_CMIFILES:.cmi=.mli) \
+		$(TOOLS)
 
 uninstall:
 	ocamlfind remove solid
@@ -166,7 +183,7 @@ archive:
 
 #####
 clean:
-	$(RM) *.cm* *.o *.annot *.a dump.odoc
+	$(RM) *.cm* *.o *.annot *.a $(TOOLS) dump.odoc
 
 # headers :
 ###########

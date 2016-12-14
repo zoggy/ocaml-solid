@@ -1,5 +1,7 @@
 ldp_cache.cmo : ldp_http.cmi ldp_cache.cmi
 ldp_cache.cmx : ldp_http.cmx ldp_cache.cmi
+ldp_containers.cmo : ldp_http.cmi ldp_containers.cmi
+ldp_containers.cmx : ldp_http.cmx ldp_containers.cmi
 ldp_cookies.cmo : ldp_cookies.cmi
 ldp_cookies.cmx : ldp_cookies.cmi
 ldp_curl.cmo : ldp_http.cmi ldp_cookies.cmi ldp_curl.cmi
@@ -14,6 +16,16 @@ ldp_types.cmo : ldp_types.cmi
 ldp_types.cmx : ldp_types.cmi
 solid_profile.cmo : ldp_types.cmi ldp_http.cmi solid_profile.cmi
 solid_profile.cmx : ldp_types.cmx ldp_http.cmx solid_profile.cmi
+solid_tool_common.cmo :
+solid_tool_common.cmx :
+solid_tool_delete.cmo : ldp_types.cmi ldp_http.cmi
+solid_tool_delete.cmx : ldp_types.cmx ldp_http.cmx
+solid_tool_get.cmo : ldp_types.cmi ldp_http.cmi
+solid_tool_get.cmx : ldp_types.cmx ldp_http.cmx
+solid_tool_ls.cmo : solid_tool_common.cmo ldp_http.cmi ldp_containers.cmi
+solid_tool_ls.cmx : solid_tool_common.cmx ldp_http.cmx ldp_containers.cmx
+solid_tool_put.cmo : ldp_http.cmi
+solid_tool_put.cmx : ldp_http.cmx
 solid_updates.cmo : solid_updates.cmi
 solid_updates.cmx : solid_updates.cmi
 solid_webidrsa.cmo : ldp_http.cmi
@@ -21,6 +33,7 @@ solid_webidrsa.cmx : ldp_http.cmx
 test_solid.cmo : ldp_types.cmi ldp_http.cmi
 test_solid.cmx : ldp_types.cmx ldp_http.cmx
 ldp_cache.cmi : ldp_http.cmi
+ldp_containers.cmi : ldp_http.cmi
 ldp_cookies.cmi :
 ldp_curl.cmi : ldp_http.cmi
 ldp_http.cmi : ldp_types.cmi

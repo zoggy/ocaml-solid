@@ -17,4 +17,4 @@ let f args http =
       in
       Lwt_list.iter_p f iris
 
-let () = Solid_common.main ~options f
+let () = Solid_tool_common.main ~options f
