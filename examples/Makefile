@@ -1,6 +1,6 @@
 include ../master.Makefile
 
-all: solid_containers.js
+all: containers.js
 
 containers.js: containers.ml
 	$(OCAMLFIND) ocamlc -o containers.byte -g -package solid.js -linkpkg $(COMPFLAGS) $^
