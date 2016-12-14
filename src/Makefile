@@ -95,12 +95,25 @@ LIB_JS_CMOFILES= \
 	solid_updates.cmo
 LIB_JS_CMIFILES=$(LIB_JS_CMOFILES:.cmo=.cmi)
 
+LIB_TOOL=solid_tool.cmxa
+LIB_TOOL_CMXS=$(LIB_TOOL:.cmxa=.cmxs)
+LIB_TOOL_A=$(LIB_TOOL:.cmxa=.a)
+LIB_TOOL_BYTE=$(LIB_TOOL:.cmxa=.cma)
+LIB_TOOL_CMI=$(LIB_TOOL:.cmxa=.cmi)
+
+LIB_TOOL_CMXFILES= \
+	solid_tool_common.cmx \
+
+LIB_TOOL_CMOFILES=$(LIB_TOOL_CMXFILES:.cmx=.cmo)
+LIB_TOOL_CMIFILES=$(LIB_TOOL_CMXFILES:.cmx=.cmi)
+LIB_TOOL_OFILES=$(LIB_TOOL_CMXFILES:.cmx=.o)
+
 TOOLS=solid_ls solid_get solid_put solid_delete
 
 all: byte opt
-byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_CURL_BYTE) $(LIB_JS)
+byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_CURL_BYTE) $(LIB_TOOL_BYTE) $(LIB_JS)
 opt: $(LIB) $(LIB_CMXS) $(LIB_TLS) $(LIB_TLS_CMXS) \
-	$(LIB_CURL) $(LIB_CURL_CMXS) tools
+	$(LIB_CURL) $(LIB_CURL_CMXS) $(LIB_TOOL) $(LIB_TOOL_CMXS) tools
 tools:$(TOOLS)
 
 $(LIB): $(LIB_CMIFILES) $(LIB_CMXFILES)
@@ -130,19 +143,28 @@ $(LIB_CURL_CMXS): $(LIB_CURL_CMIFILES) $(LIB_CURL_CMXFILES)
 $(LIB_CURL_BYTE): $(LIB_CURL_CMIFILES) $(LIB_CURL_CMOFILES)
 	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_CURL_CMOFILES)
 
+$(LIB_TOOL): $(LIB_TOOL_CMIFILES) $(LIB_TOOL_CMXFILES)
+	$(OCAMLFIND) ocamlopt -o $@ -a $(LIB_TOOL_CMXFILES)
+
+$(LIB_TOOL_CMXS): $(LIB_TOOL_CMIFILES) $(LIB_TOOL_CMXFILES)
+	$(OCAMLFIND) ocamlopt -shared -o $@ $(LIB_TOOL_CMXFILES)
+
+$(LIB_TOOL_BYTE): $(LIB_TOOL_CMIFILES) $(LIB_TOOL_CMOFILES)
+	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_TOOL_CMOFILES)
+
 $(LIB_JS): $(LIB_JS_CMIFILES) $(LIB_JS_CMOFILES)
 	$(OCAMLFIND) ocamlc -o $@ -a $(LIB_JS_CMOFILES)
 
-solid_ls: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_ls.cmx
+solid_ls: $(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) solid_tool_ls.cmx
 	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
 
-solid_get: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_get.cmx
+solid_get: $(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) solid_tool_get.cmx
 	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
 
-solid_put: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_put.cmx
+solid_put: $(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) solid_tool_put.cmx
 	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
 
-solid_delete: $(LIB) $(LIB_CURL) $(LIB_TLS) solid_tool_common.cmx solid_tool_delete.cmx
+solid_delete: $(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) solid_tool_delete.cmx
 	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
 
 ##########
@@ -170,6 +192,8 @@ install: byte opt
 		$(LIB_TLS_BYTE) $(LIB_TLS_CMIFILES) $(LIB_TLS_CMIFILES:.cmi=.mli) \
 		$(LIB_CURL) $(LIB_CURL_CMXS) $(LIB_CURL_OFILES) $(LIB_CURL_CMXFILES) $(LIB_CURL_A) \
 		$(LIB_CURL_BYTE) $(LIB_CURL_CMIFILES) $(LIB_CURL_CMIFILES:.cmi=.mli) \
+		$(LIB_TOOL) $(LIB_TOOL_CMXS) $(LIB_TOOL_OFILES) $(LIB_TOOL_CMXFILES) $(LIB_TOOL_A) \
+		$(LIB_TOOL_BYTE) $(LIB_TOOL_CMIFILES) $(LIB_TOOL_CMIFILES:.cmi=.mli) \
 		$(LIB_JS) $(LIB_JS_CMIFILES) $(LIB_JS_CMIFILES:.cmi=.mli) \
 		$(TOOLS)
 

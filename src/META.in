@@ -23,6 +23,15 @@ package "curl" (
   archive(native,plugin) = "solid_curl.cmxs"
 )
 
+package "tool" (
+  version = "@VERSION@"
+  description = "LDP and SOLID with OCaml - Library to create command line tools"
+  requires = "solid.curl,solid.tls"
+  archive(byte) = "solid_tol.cma"
+  archive(native) = "solid_tool.cmxa"
+  archive(native,plugin) = "solid_tool.cmxs"
+)
+
 package "js" (
   version = "@VERSION@"
   description = "LDP and SOLID with OCaml - Library to compile to Javascript"
