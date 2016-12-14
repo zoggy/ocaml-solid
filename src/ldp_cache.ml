@@ -21,7 +21,7 @@ let of_dir dirname =
 
     let store key str =
       let filename = Filename.concat dirname key in
-      let%lwt () = Lwt_io.(write_line stdout (Printf.sprintf "output to %s" filename)) in
+      (*let%lwt () = Lwt_io.(write_line stdout (Printf.sprintf "output to %s" filename)) in*)
       Lwt_io.(with_file Output filename
        (fun oc -> write oc str))
 
