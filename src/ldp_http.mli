@@ -111,6 +111,18 @@ module type Http =
       ?del:Rdf_graph.graph -> ?ins:Rdf_graph.graph -> Iri.t -> unit Lwt.t
     val delete : Iri.t -> unit Lwt.t
     val login : Iri.t -> string option Lwt.t
+
+    val fold_get :
+      ?onerror:[ `Fail | `Ignore | `Report of exn -> unit Lwt.t ] ->
+        ?accept:string ->
+        ?parse:bool ->
+        ('a -> Ldp_types.resource -> 'a Lwt.t) ->
+        'a -> Iri.t list -> 'a Lwt.t
+
+    val fold_get_graph :
+      ?onerror:[ `Fail | `Ignore | `Report of exn -> unit Lwt.t ] ->
+      Rdf_graph.graph -> Iri.t list -> unit Lwt.t
+
   end
 
 module Cached_http : Cache -> Requests -> Http

@@ -90,6 +90,18 @@ let split_string ?(keep_empty=false) s chars =
   iter "" 0
 (*/c==v=[String.split_string]=1.2====*)
 
+(*c==v=[String.no_blanks]=1.0====*)
+let no_blanks s =
+  let len = String.length s in
+  let buf = Buffer.create len in
+  for i = 0 to len - 1 do
+    match s.[i] with
+      ' ' | '\n' | '\t' | '\r' -> ()
+    | c -> Buffer.add_char buf c
+  done;
+  Buffer.contents buf
+(*/c==v=[String.no_blanks]=1.0====*)
+
 let methods_of_string =
   let f acc m =
     try (Code.method_of_string m) :: acc
@@ -97,3 +109,10 @@ let methods_of_string =
   in
   fun str ->
     List.fold_left f [] (split_string str [',';' ';'\t'])
+
+let mime_of_content_type s =
+  let s =
+    try String.sub s 0 (String.index s ';')
+    with Not_found -> s
+  in
+  String.lowercase_ascii (no_blanks s)

@@ -40,3 +40,5 @@ type error +=
 
 val split_string : ?keep_empty:bool -> string -> char list -> string list
 val methods_of_string : string -> Code.meth list
+
+val mime_of_content_type : string -> string

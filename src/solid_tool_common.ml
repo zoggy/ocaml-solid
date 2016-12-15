@@ -117,6 +117,7 @@ let parse ?(options=[]) ?(usage=usage) () =
 
       "--cache", Arg.String cache,
       " <dir> use <dir> as cache directory" ;
+
       "--nocache", Arg.Unit nocache,
       " <dir> do not use cache" ;
     ]
@@ -144,16 +145,28 @@ let print_fail where fail =
   Lwt_io.(write_line stderr msg)
 
 let main ?options ?usage f =
-  let main =
-    try%lwt
-      let%lwt (args, http) = parse ?options ?usage () in
-      f args http
-    with
-    | Ldp_types.Error e ->
-       Lwt_io.(write_line stderr (Ldp_types.string_of_error e))
-    | Tls_lwt.Tls_alert alert ->
-        print_alert "remote end" alert >>= fun () -> exit 1
-    | Tls_lwt.Tls_failure alert ->
-        print_fail "our end" alert >>= fun () -> exit 1
-  in
-  Lwt_main.run main
+  try
+    let main =
+      try%lwt
+        let%lwt (args, http) = parse ?options ?usage () in
+        f args http
+      with
+      | Ldp_types.Error e ->
+          Lwt_io.(write_line stderr (Ldp_types.string_of_error e))
+      | Tls_lwt.Tls_alert alert ->
+          print_alert "remote end" alert >>= fun () -> exit 1
+            | Tls_lwt.Tls_failure alert ->
+              print_fail "our end" alert >>= fun () -> exit 1
+    in
+    Lwt_main.run main
+  with e ->
+      let msg =
+        match e with
+        | Unix.Unix_error (e,s1,s2) ->
+          Printf.sprintf "%s: %s %s" s1 (Unix.error_message e) s2
+        | Failure s | Sys_error s -> s
+        | _ -> Printexc.to_string e
+      in
+      prerr_endline msg;
+      exit 1
+

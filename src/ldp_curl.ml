@@ -6,10 +6,34 @@ module type P =
     val key : string
   end
 
+let reader_of_string str =
+  let counter = ref 0 in
+  let len = String.length str in
+  let f n =
+    if !counter >= len then
+      (
+      ""
+      )
+    else
+      if !counter + n < len then
+        (
+         let s = String.sub str !counter n in
+         counter := !counter + n;
+         s
+        )
+      else
+        (
+         let s = String.sub str !counter (len - !counter) in
+         counter := !counter + n ;
+         s
+        )
+  in
+  f
+
 module Make (P:P) : Ldp_http.Requests =
   struct
-    Curl.global_init Curl.CURLINIT_GLOBALALL
-
+    let () = Curl.global_init Curl.CURLINIT_GLOBALALL
+    (*let () = Curl_lwt.set_debug true*)
     let dbg = P.dbg
 
     include Ldp_cookies.Make ()
@@ -72,17 +96,45 @@ module Make (P:P) : Ldp_http.Requests =
       in
       let conn = Curl.init () in
       Curl.set_url conn (Iri.to_uri iri) ;
+      Curl.set_followlocation conn true;
       Curl.set_sslverifypeer conn true;
       Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_HOSTNAME;
       Curl.set_sslcert conn P.cert ;
       Curl.set_sslkey conn P.key ;
-      Curl.set_customrequest conn (Cohttp.Code.string_of_method meth) ;
+      begin
+        match String.uppercase_ascii (Cohttp.Code.string_of_method meth) with
+        | "PUT" -> Curl.set_put conn true
+        | "POST" -> Curl.set_post conn true
+        | met -> Curl.set_customrequest conn met
+      end;
       let () =
         match headers with
           None -> ()
         | Some h ->
             Curl.set_header conn true ;
             Curl.set_httpheader conn (Cohttp.Header.to_lines h)
+      in
+      let%lwt () =
+        match body with
+          None -> Lwt.return_unit
+        | Some b ->
+            (*let%lwt () = Lwt_io.(write_line stderr "with body") in*)
+            let%lwt str = Body.to_string b in
+            (*let readfunction = reader_of_string str in
+            let%lwt () =
+              let b = Buffer.create 256 in
+              let rec iter () =
+                match readfunction 40 with
+                   "" -> Lwt_io.(write_line stderr (Buffer.contents b) )
+                 | s -> assert (String.length s <= 40); Buffer.add_string b s ; iter ()
+              in
+              iter ()
+            in*)
+            Curl.set_upload conn true;
+            let len = String.length str in
+            Curl.set_infilesize conn len ;
+            Curl.set_readfunction conn (reader_of_string str);
+            Lwt.return_unit
       in
       let%lwt (resp, body) =
         match%lwt perform conn with

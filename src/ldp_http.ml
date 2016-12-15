@@ -138,6 +138,15 @@ module type Http =
       ?del:Rdf_graph.graph -> ?ins:Rdf_graph.graph -> Iri.t -> unit Lwt.t
     val delete : Iri.t -> unit Lwt.t
     val login : Iri.t -> string option Lwt.t
+    val fold_get :
+      ?onerror:[ `Fail | `Ignore | `Report of exn -> unit Lwt.t ] ->
+        ?accept:string ->
+        ?parse:bool ->
+        ('a -> Ldp_types.resource -> 'a Lwt.t) ->
+        'a -> Iri.t list -> 'a Lwt.t
+    val fold_get_graph :
+      ?onerror:[ `Fail | `Ignore | `Report of exn -> unit Lwt.t ] ->
+      Rdf_graph.graph -> Iri.t list -> unit Lwt.t
   end
 
 module type Cache =
@@ -245,7 +254,8 @@ module Cached_http (C:Cache) (P:Requests) =
 
     let get_rdf ?g ?(accept=mime_turtle) ?(parse=(g<>None)) iri =
       get_non_rdf ~accept iri >>=
-      fun (mime_type, str) ->
+      fun (content_type, str) ->
+          let mime_type = Ldp_types.mime_of_content_type content_type in
           P.dbg str >>=
             fun () ->
               if parse then
@@ -277,7 +287,7 @@ module Cached_http (C:Cache) (P:Requests) =
           None -> ""
         | Some s -> s
       in
-      match ct with
+      match Ldp_types.mime_of_content_type ct with
       | mime when parse &&
           (mime = mime_turtle || mime = mime_xmlrdf) ->
           let meta = response_metadata iri
@@ -442,6 +452,26 @@ module Cached_http (C:Cache) (P:Requests) =
       P.dbg (Printf.sprintf "login, iri=%s" (Iri.to_string iri)) >>= fun () ->
         head iri >>= fun meta -> Lwt.return meta.user
 
+    let fold_get ?(onerror=`Fail) ?accept ?parse f acc iris =
+      let g acc iri =
+        match%lwt get ?accept ?parse iri with
+        | r -> f acc r
+        | exception e ->
+           begin
+             match onerror with
+               `Fail -> Lwt.fail e
+             | `Ignore -> Lwt.return acc
+             | `Report rep -> let%lwt () = rep e in Lwt.return acc
+           end
+      in
+      Lwt_list.fold_left_s g acc iris
+
+    let fold_get_graph ?onerror g iris =
+      let f () = function
+      | Container r | Rdf r -> Rdf_graph.merge g r.graph; Lwt.return_unit
+      | Non_rdf _ ->  Lwt.return_unit
+      in
+      fold_get ?onerror ~parse: true f () iris
   end
 
 module Http (P:Requests) = Cached_http (No_cache) (P)

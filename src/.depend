@@ -16,15 +16,15 @@ ldp_types.cmo : ldp_types.cmi
 ldp_types.cmx : ldp_types.cmi
 solid_profile.cmo : ldp_types.cmi ldp_http.cmi solid_profile.cmi
 solid_profile.cmx : ldp_types.cmx ldp_http.cmx solid_profile.cmi
-solid_tool_common.cmo :
-solid_tool_common.cmx :
-solid_tool_delete.cmo : solid_tool_common.cmo ldp_types.cmi ldp_http.cmi
+solid_tool_common.cmo : solid_tool_common.cmi
+solid_tool_common.cmx : solid_tool_common.cmi
+solid_tool_delete.cmo : solid_tool_common.cmi ldp_types.cmi ldp_http.cmi
 solid_tool_delete.cmx : solid_tool_common.cmx ldp_types.cmx ldp_http.cmx
-solid_tool_get.cmo : solid_tool_common.cmo ldp_types.cmi ldp_http.cmi
+solid_tool_get.cmo : solid_tool_common.cmi ldp_types.cmi ldp_http.cmi
 solid_tool_get.cmx : solid_tool_common.cmx ldp_types.cmx ldp_http.cmx
-solid_tool_ls.cmo : solid_tool_common.cmo ldp_http.cmi ldp_containers.cmi
+solid_tool_ls.cmo : solid_tool_common.cmi ldp_http.cmi ldp_containers.cmi
 solid_tool_ls.cmx : solid_tool_common.cmx ldp_http.cmx ldp_containers.cmx
-solid_tool_put.cmo : solid_tool_common.cmo ldp_http.cmi
+solid_tool_put.cmo : solid_tool_common.cmi ldp_http.cmi
 solid_tool_put.cmx : solid_tool_common.cmx ldp_http.cmx
 solid_updates.cmo : solid_updates.cmi
 solid_updates.cmx : solid_updates.cmi
@@ -41,4 +41,5 @@ ldp_js.cmi : ldp_http.cmi
 ldp_tls.cmi : ldp_http.cmi
 ldp_types.cmi :
 solid_profile.cmi : ldp_http.cmi
+solid_tool_common.cmi : ldp_http.cmi
 solid_updates.cmi :
