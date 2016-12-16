@@ -6,29 +6,25 @@ module type P =
     val key : string
   end
 
-let reader_of_string str =
-  let counter = ref 0 in
+let reader_of_string str counter n =
   let len = String.length str in
-  let f n =
-    if !counter >= len then
+  if !counter >= len then
+    (
+     ""
+    )
+  else
+    if !counter + n < len then
       (
-      ""
+       let s = String.sub str !counter n in
+       counter := !counter + n;
+       s
       )
     else
-      if !counter + n < len then
-        (
-         let s = String.sub str !counter n in
-         counter := !counter + n;
-         s
-        )
-      else
-        (
-         let s = String.sub str !counter (len - !counter) in
-         counter := !counter + n ;
-         s
-        )
-  in
-  f
+      (
+       let s = String.sub str !counter (len - !counter) in
+       counter := !counter + n ;
+       s
+      )
 
 module Make (P:P) : Ldp_http.Requests =
   struct
@@ -72,30 +68,55 @@ module Make (P:P) : Ldp_http.Requests =
       Lwt.on_failure t (fun _exn -> closefn ());
       t
 
-    let perform h =
+    let rec perform conn meth =
+      let%lwt () = P.dbg
+         (Printf.sprintf "%s %s" (Cohttp.Code.string_of_method meth)
+          (Curl.get_effectiveurl conn))
+      in
       let b = Buffer.create 256 in
-      Curl.set_writefunction h (fun s -> Buffer.add_string b s; String.length s);
-      Lwt.bind (Curl_lwt.perform h) (fun code -> Lwt.return (code, Buffer.contents b))
+      Curl.set_writefunction conn (fun s -> Buffer.add_string b s; String.length s);
+      let%lwt curl_code = Curl_lwt.perform conn in
+      let str = Buffer.contents b in
+      let code = Curl.get_responsecode conn in
+      match curl_code, code with
+      | Curl.CURLE_OK, 301
+      | Curl.CURLE_OK, 302 ->
+          begin
+            let%lwt(resp, _) = read_response
+              ~closefn: (fun () -> Curl.cleanup conn)
+                (Cohttp.String_io.open_in str)
+                ()
+                meth
+            in
+            let url = Curl.get_redirecturl conn in
+            Curl.set_url conn url ;
+            perform conn meth
+          end
+      | _ -> Lwt.return (curl_code, str)
 
     let call ?body ?chunked ?headers meth iri =
       let headers =
-        match headers, cookies_by_iri iri with
-            None, [] -> None
-          | _, cookies ->
-            let h =
-              match headers with
-                None -> Cohttp.Header.init ()
-              | Some h -> h
-            in
+        match headers with
+          None -> Cohttp.Header.init ()
+        | Some h -> h
+      in
+      (* set empty Expect field:
+        http://www.iandennismiller.com/posts/curl-http1-1-100-continue-and-multipartform-data-post.html
+      *)
+      let headers = Cohttp.Header.add headers "Expect" "" in
+      let headers =
+        match cookies_by_iri iri with
+            [] -> headers
+          | cookies ->
             (*List.iter
               (fun (k, v) -> prerr_endline (Printf.sprintf "setting cookie: %s => %s" k v))
               cookies;*)
             let (k, v) = Cohttp.Cookie.Cookie_hdr.serialize cookies in
-            Some (Cohttp.Header.add h k v)
+            Cohttp.Header.add headers k v
       in
       let conn = Curl.init () in
+      Curl.set_header conn true ;
       Curl.set_url conn (Iri.to_uri iri) ;
-      Curl.set_followlocation conn true;
       Curl.set_sslverifypeer conn true;
       Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_HOSTNAME;
       Curl.set_sslcert conn P.cert ;
@@ -106,18 +127,10 @@ module Make (P:P) : Ldp_http.Requests =
         | "POST" -> Curl.set_post conn true
         | met -> Curl.set_customrequest conn met
       end;
-      let () =
-        match headers with
-          None -> ()
-        | Some h ->
-            Curl.set_header conn true ;
-            Curl.set_httpheader conn (Cohttp.Header.to_lines h)
-      in
       let%lwt () =
         match body with
           None -> Lwt.return_unit
         | Some b ->
-            (*let%lwt () = Lwt_io.(write_line stderr "with body") in*)
             let%lwt str = Body.to_string b in
             (*let readfunction = reader_of_string str in
             let%lwt () =
@@ -132,13 +145,23 @@ module Make (P:P) : Ldp_http.Requests =
             Curl.set_upload conn true;
             let len = String.length str in
             Curl.set_infilesize conn len ;
-            Curl.set_readfunction conn (reader_of_string str);
+            let counter = ref 0 in
+            let readf = reader_of_string in
+            Curl.set_readfunction conn (readf str counter);
             Lwt.return_unit
       in
+      let headlines =
+        List.map
+          (fun (h,v) -> Printf.sprintf "%s: %s" h v)
+          (Cohttp.Header.to_list headers)
+      in
+      Curl.set_httpheader conn headlines ;
+
       let%lwt (resp, body) =
-        match%lwt perform conn with
+        match%lwt perform conn meth with
           (Curl.CURLE_OK, str) ->
             begin
+              (*prerr_endline str;*)
               let code = Curl.get_responsecode conn in
               match code / 100 with
                 2 ->

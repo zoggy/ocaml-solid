@@ -7,6 +7,7 @@ type profile =
     cert: string [@ocf Ocf.Wrapper.string, "client.pem"] ;
     certificates: string option [@ocf Ocf.Wrapper.(option string), None] ;
     cache: string option [@ocf Ocf.Wrapper.(option string), None] ;
+    debug: bool [@ocf Ocf.Wrapper.bool, false] ;
   } [@@ocf];;
 
 let usage = Printf.sprintf "Usage: %s [options] [args]\nwhere options are:" Sys.argv.(0)
@@ -14,7 +15,11 @@ let usage = Printf.sprintf "Usage: %s [options] [args]\nwhere options are:" Sys.
 let ldp_http_curl profile =
   let module P =
   struct
-    let dbg = Lwt_io.write_line Lwt_io.stderr
+    let dbg =
+      if profile.debug then
+        Lwt_io.write_line Lwt_io.stderr
+      else
+        (fun _ -> Lwt.return_unit)
     let cert = profile.cert
     let key = profile.privkey
   end
@@ -37,7 +42,11 @@ let ldp_http_tls profile =
   in
   let module P =
   struct
-    let dbg = Lwt_io.write_line Lwt_io.stderr
+    let dbg =
+      if profile.debug then
+        Lwt_io.write_line Lwt_io.stderr
+      else
+        (fun _ -> Lwt.return_unit)
     let authenticator = authenticator
     let certificates = certificates
   end
@@ -97,6 +106,8 @@ let parse ?(options=[]) ?(usage=usage) () =
   in
   let cache s = profile := { !profile with cache = Some (map_filename s) } in
   let nocache s = profile := { !profile with cache = None } in
+  let debug s = profile := { !profile with debug = true } in
+  let nodebug s = profile := { !profile with debug = false } in
   let base_options =
     [ "-p", Arg.String identity,
       "id use profile with corresponding id" ;
@@ -120,6 +131,12 @@ let parse ?(options=[]) ?(usage=usage) () =
 
       "--nocache", Arg.Unit nocache,
       " <dir> do not use cache" ;
+
+      "--debug", Arg.Unit debug,
+      " <dir> debug mode on" ;
+
+      "--nodebug", Arg.Unit nodebug,
+      " <dir> debug mode off" ;
     ]
   in
   let args = ref [] in

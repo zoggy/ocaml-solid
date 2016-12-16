@@ -4,6 +4,7 @@ type profile = {
   cert : string;
   certificates : string option;
   cache : string option;
+  debug: bool ;
 }
 val default_profile : profile
 val profile_wrapper : profile Ocf.Wrapper.t
