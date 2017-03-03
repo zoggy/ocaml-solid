@@ -36,6 +36,7 @@ CP=cp -f
 MKDIR=mkdir -p
 
 COMMON_CMXFILES= \
+	ldp_log.cmx \
 	ldp_types.cmx \
 	ldp_http.cmx \
 	ldp_cookies.cmx \
@@ -114,7 +115,11 @@ TOOLS=solid_ls solid_get solid_put solid_delete
 
 SERVER=oss
 SERVER_BYTE=$(SERVER).byte
-SERVER_CMXFILES=server_main.cmx
+SERVER_CMXFILES=\
+	server_conf.cmx \
+	cohttp_tls.cmx \
+	server_http_tls.cmx \
+	server_main.cmx
 SERVER_CMIFILES=$(SERVER_CMXFILES:.cmx=.cmi)
 SERVER_CMOFILES=$(SERVER_CMXFILES:.cmx=.cmo)
 
