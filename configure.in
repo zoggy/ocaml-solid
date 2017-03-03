@@ -66,12 +66,14 @@ AC_SUBST(PACKAGES)
 AC_SUBST(JS_PACKAGES)
 AC_SUBST(TLS_PACKAGES)
 AC_SUBST(CURL_PACKAGES)
+AC_SUBST(SERVER_PACKAGES)
 
 SOLID_PACKAGES="$PACKAGE, $PACKAGE.js"
 PACKAGES=cohttp.lwt,lwt.ppx,rdf,ppx_sexp_conv,ocf,ocf.ppx
 JS_PACKAGES=cohttp.js,js_of_ocaml.ppx
 TLS_PACKAGES=tls.lwt,tls
 CURL_PACKAGES=curl.lwt,curl
+SERVER_PACKAGES=webmachine,websocket
 
 # Finally create the master.Makefile.in
 ACFILES="master.Makefile src/META"

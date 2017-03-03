@@ -56,22 +56,23 @@ PACKAGES=@PACKAGES@
 JS_PACKAGES=@JS_PACKAGES@
 TLS_PACKAGES=@TLS_PACKAGES@
 CURL_PACKAGES=@CURL_PACKAGES@
+SERVER_PACKAGES=@SERVER_PACKAGES@
 
 # generic rules :
 #################
 .SUFFIXES: .mli .ml .cmi .cmo .cmx
 
 %.cmi:%.mli
-	$(OCAMLFIND) ocamlc $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
+	$(OCAMLFIND) ocamlc $(OF_FLAGS_COMP) $(OCAMLPP) $(COMPFLAGS) -c $<
 
 %.cmo:%.ml
-	$(OCAMLFIND) ocamlc $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
+	$(OCAMLFIND) ocamlc $(OF_FLAGS_COMP) $(OCAMLPP) $(COMPFLAGS) -c $<
 
 %.cmi %.cmo:%.ml
-	$(OCAMLFIND) ocamlc $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
+	$(OCAMLFIND) ocamlc $(OF_FLAGS_COMP) $(OCAMLPP) $(COMPFLAGS) -c $<
 
 %.cmx %.o:%.ml
-	$(OCAMLFIND) ocamlopt $(OF_FLAGS) $(OCAMLPP) $(COMPFLAGS) -c $<
+	$(OCAMLFIND) ocamlopt $(OF_FLAGS_COMP) $(OCAMLPP) $(COMPFLAGS) -c $<
 
 # some common targets :
 #######################

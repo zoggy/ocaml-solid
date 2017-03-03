@@ -55,7 +55,7 @@ module Make (P:P) : Ldp_http.Requests =
               | `Yes | `Unknown ->
                   let reader = Response.make_body_reader res ic in
                   let stream = Body.create_stream Response.read_body_chunk reader in
-                  Lwt_stream.on_terminate stream closefn;
+                  Lwt.async (fun () -> Lwt_stream.closed stream >|= closefn);
                   let gcfn st = closefn () in
                   Gc.finalise gcfn stream;
                   let body = Body.of_stream stream in

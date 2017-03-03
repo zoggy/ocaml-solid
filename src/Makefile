@@ -28,6 +28,8 @@ include ../master.Makefile
 OCAMLFIND=ocamlfind
 COMPFLAGS=-annot -safe-string -g
 OF_FLAGS=-package $(PACKAGES),$(JS_PACKAGES),$(TLS_PACKAGES),$(CURL_PACKAGES)
+OF_FLAGS_SERVER=$(OF_FLAGS) -package $(SERVER_PACKAGES)
+OF_FLAGS_COMP=$(OF_FLAGS_SERVER)
 
 RM=rm -f
 CP=cp -f
@@ -110,11 +112,19 @@ LIB_TOOL_OFILES=$(LIB_TOOL_CMXFILES:.cmx=.o)
 
 TOOLS=solid_ls solid_get solid_put solid_delete
 
-all: byte opt
-byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_CURL_BYTE) $(LIB_TOOL_BYTE) $(LIB_JS)
+SERVER=oss
+SERVER_BYTE=$(SERVER).byte
+SERVER_CMXFILES=server_main.cmx
+SERVER_CMIFILES=$(SERVER_CMXFILES:.cmx=.cmi)
+SERVER_CMOFILES=$(SERVER_CMXFILES:.cmx=.cmo)
+
+all: opt byte
+byte: $(LIB_BYTE) $(LIB_TLS_BYTE) $(LIB_CURL_BYTE) $(LIB_TOOL_BYTE) $(LIB_JS) \
+	$(SERVER_BYTE)
 opt: $(LIB) $(LIB_CMXS) $(LIB_TLS) $(LIB_TLS_CMXS) \
-	$(LIB_CURL) $(LIB_CURL_CMXS) $(LIB_TOOL) $(LIB_TOOL_CMXS) tools
+	$(LIB_CURL) $(LIB_CURL_CMXS) $(LIB_TOOL) $(LIB_TOOL_CMXS) tools $(SERVER)
 tools:$(TOOLS)
+server: $(SERVER)
 
 $(LIB): $(LIB_CMIFILES) $(LIB_CMXFILES)
 	$(OCAMLFIND) ocamlopt -o $@ -a $(LIB_CMXFILES)
@@ -166,6 +176,17 @@ solid_put: $(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) solid_tool_put.cmx
 
 solid_delete: $(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) solid_tool_delete.cmx
 	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS) -linkpkg $^
+
+$(SERVER): $(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) \
+	$(SERVER_CMIFILES) $(SERVER_CMXFILES)
+	$(OCAMLFIND) ocamlopt -o $@ $(OF_FLAGS_SERVER) -linkpkg \
+	$(LIB) $(LIB_CURL) $(LIB_TLS) $(LIB_TOOL) $(SERVER_CMXFILES)
+
+$(SERVER_BYTE): $(LIB_BYTE) $(LIB_CURL_BYTE) $(LIB_TLS_YTE) $(LIB_TOOL_BYTE) \
+	$(SERVER_CMIFILES) $(SERVER_CMOFILES)
+	$(OCAMLFIND) ocamlc -o $@ $(OF_FLAGS_SERVER) -linkpkg \
+	$(LIB_BYTE) $(LIB_CURL_BYTE) $(LIB_TLS_BYTE) $(LIB_TOOL_BYTE) \
+	$(SERVER_CMOFILES)
 
 ##########
 .PHONY: doc
