@@ -15,10 +15,11 @@ let get_cert_info cert =
     (X509.distinguished_name_to_string issuer)
     (String.concat ", " (X509.hostnames cert))
 
-let server =
+let server () =
   X509_lwt.private_of_pems
-    ~cert:server_cert
-    ~priv_key:server_key >>= fun cert ->
+    ~cert:(Ocf.get Server_conf.server_cert)
+    ~priv_key:(Ocf.get Server_conf.server_key)
+    >>= fun cert ->
     X509_lwt.authenticator `No_authentication_I'M_STUPID >>= fun authenticator ->
   let tls_server = Tls.Config.server
     ~reneg:true
@@ -39,6 +40,7 @@ let server =
     in
     let uri = req |> Request.uri in
     let uri_s = uri |> Uri.to_string in
+    let%lwt () = Ldp_log.__debug_lwt (fun m -> m "New query: %s" uri_s) in
     (*match Uri.path uri with
         "/private" ->
           let t = Tls_lwt.reneg tls_session
@@ -56,5 +58,6 @@ let server =
      `No_password,
      `Port 9999)
   in*)
-  Server.create (*~mode*) ~port: 9999 tls_server (Server.make ~callback())
+  Server.create (*~mode*) ~port: (Ocf.get Server_conf.port)
+  tls_server (Server.make ~callback())
 

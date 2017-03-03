@@ -25,15 +25,15 @@ let level_wrapper =
   let from_json ?(def=App) = function
   `String s ->
       begin
-        match s with
+        match String.lowercase_ascii s with
           "app" | "0" -> App
         | "error" | "1" -> Error
         | "warning" | "2" -> Warning
         | "info" | "3" -> Info
-        | "Debug" | "4" -> Debug
+        | "debug" | "4" -> Debug
         | _ -> def
       end
-  | _ -> def
+  | _ -> prerr_endline "bad value";def
   in
   let w = Ocf.Wrapper.make to_json from_json in
   Ocf.Wrapper.option w

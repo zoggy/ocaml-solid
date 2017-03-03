@@ -6,7 +6,7 @@ let server_cert = Ocf.string ~doc:".pem file of server certificate"
 let server_key = Ocf.string ~doc:".key file of server key"
   "./server-certificates/server.key"
 
-let port = Ocf.int ~doc: "port number to listen to" 443
+let port = Ocf.int ~doc: "port number to listen to" 9999
 
 let storage_root = Ocf.string
   ~doc:"root directory to store served documents"
@@ -14,7 +14,8 @@ let storage_root = Ocf.string
 
 let () = Logs.set_level ~all: true (Some Logs.Warning)
 let global_log_level = Ocf.option
-  ~cb: Logs.set_level
+  ~cb: (fun l -> Logs.set_level ~all: true l;
+     prerr_endline (Printf.sprintf "level set to %s" (Logs.level_to_string l)))
   Ldp_log.level_wrapper (Logs.level ())
 
 let add_options g =

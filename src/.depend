@@ -20,12 +20,12 @@ ldp_types.cmo : ldp_types.cmi
 ldp_types.cmx : ldp_types.cmi
 server_conf.cmo : server_log.cmi ldp_log.cmi
 server_conf.cmx : server_log.cmx ldp_log.cmx
-server_http_tls.cmo : cohttp_tls.cmo
-server_http_tls.cmx : cohttp_tls.cmx
+server_http_tls.cmo : server_conf.cmo ldp_log.cmi cohttp_tls.cmo
+server_http_tls.cmx : server_conf.cmx ldp_log.cmx cohttp_tls.cmx
 server_log.cmo : ldp_log.cmi server_log.cmi
 server_log.cmx : ldp_log.cmx server_log.cmi
-server_main.cmo : server_conf.cmo
-server_main.cmx : server_conf.cmx
+server_main.cmo : server_log.cmi server_http_tls.cmo server_conf.cmo
+server_main.cmx : server_log.cmx server_http_tls.cmx server_conf.cmx
 solid_profile.cmo : ldp_types.cmi ldp_http.cmi solid_profile.cmi
 solid_profile.cmx : ldp_types.cmx ldp_http.cmx solid_profile.cmi
 solid_tool_common.cmo : ldp_types.cmi ldp_tls.cmi ldp_http.cmi ldp_curl.cmi \
