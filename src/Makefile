@@ -116,6 +116,7 @@ TOOLS=solid_ls solid_get solid_put solid_delete
 SERVER=oss
 SERVER_BYTE=$(SERVER).byte
 SERVER_CMXFILES=\
+	server_log.cmx \
 	server_conf.cmx \
 	cohttp_tls.cmx \
 	server_http_tls.cmx \

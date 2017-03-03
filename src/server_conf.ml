@@ -12,6 +12,10 @@ let storage_root = Ocf.string
   ~doc:"root directory to store served documents"
   "./documents"
 
+let global_log_level = Ocf.option
+  ~cb: Logs.set_level
+  Ldp_log.level_wrapper None
+
 let add_options g =
   let https =
     let g = Ocf.group in
@@ -25,7 +29,14 @@ let add_options g =
     let g = Ocf.add g ["root"] storage_root in
     g
   in
+  let log =
+    let g = Ocf.group in
+    let g = Ocf.add g ["global"] global_log_level in
+    let g = Ocf.add g ["library"] Ldp_log.log_level in
+    let g = Ocf.add g ["server"] Server_log.log_level in
+    g
+  in
   let g = Ocf.add_group g ["https"] https in
   let g = Ocf.add_group g ["storage"] storage in
-  (*let g = Ocf.add_group g ["log"] Dmw_log.options in*)
+  let g = Ocf.add_group g ["log"] log in
   g
