@@ -12,9 +12,10 @@ let storage_root = Ocf.string
   ~doc:"root directory to store served documents"
   "./documents"
 
+let () = Logs.set_level ~all: true (Some Logs.Warning)
 let global_log_level = Ocf.option
   ~cb: Logs.set_level
-  Ldp_log.level_wrapper None
+  Ldp_log.level_wrapper (Logs.level ())
 
 let add_options g =
   let https =

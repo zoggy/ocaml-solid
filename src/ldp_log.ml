@@ -2,10 +2,15 @@
 
 let src = Logs.Src.create ~doc:"log of the ocaml-solid library" "solid"
 
-let __err f = Logs_lwt.err ~src f
-let __warn f = Logs_lwt.warn ~src f
-let __info f = Logs_lwt.info ~src f
-let __debug f = Logs_lwt.debug ~src f
+let __err f = Logs.err ~src f
+let __warn f = Logs.warn ~src f
+let __info f = Logs.info ~src f
+let __debug f = Logs.debug ~src f
+
+let __err_lwt f = Logs_lwt.err ~src f
+let __warn_lwt f = Logs_lwt.warn ~src f
+let __info_lwt f = Logs_lwt.info ~src f
+let __debug_lwt f = Logs_lwt.debug ~src f
 
 open Logs
 

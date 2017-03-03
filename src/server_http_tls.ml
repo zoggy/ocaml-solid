@@ -58,4 +58,3 @@ let server =
   in*)
   Server.create (*~mode*) ~port: 9999 tls_server (Server.make ~callback())
 
-let () = ignore (Lwt_main.run server)
