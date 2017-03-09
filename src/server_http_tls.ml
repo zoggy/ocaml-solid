@@ -15,6 +15,8 @@ let get_cert_info cert =
     (X509.distinguished_name_to_string issuer)
     (String.concat ", " (X509.hostnames cert))
 
+(* FIXME: add user authentication with cookies here *)
+
 let server http_handler =
   X509_lwt.private_of_pems
     ~cert:(Ocf.get Server_conf.server_cert)
@@ -41,7 +43,7 @@ let server http_handler =
     let uri = req |> Request.uri in
     let uri_s = uri |> Uri.to_string in
     let%lwt () = Ldp_log.__debug_lwt (fun m -> m "New query: %s" uri_s) in
-    http_handler (None, req) body
+    http_handler ?user: None req body
     (*match Uri.path uri with
         "/private" ->
           let t = Tls_lwt.reneg tls_session

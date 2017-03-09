@@ -1,7 +1,7 @@
 {
   "storage": {
     "root": "root directory to store served documents",
-    "root": "./documents"
+    "root": "www"
   },
   "log": { "global": "debug" },
   "https": {

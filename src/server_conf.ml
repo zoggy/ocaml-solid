@@ -8,9 +8,23 @@ let server_key = Ocf.string ~doc:".key file of server key"
 
 let port = Ocf.int ~doc: "port number to listen to" 9999
 
-let storage_root = Ocf.string
+let filename_wrapper =
+  let to_json ?with_doc fn = `String fn in
+  let from_json ?def = function
+    `String str ->
+      begin
+        if Filename.is_relative str then
+          Filename.concat (Sys.getcwd()) str
+        else
+          str
+      end
+  | json -> Ocf.invalid_value json
+  in
+  Ocf.Wrapper.make to_json from_json
+
+let storage_root = Ocf.option filename_wrapper
   ~doc:"root directory to store served documents"
-  "./documents"
+  "www"
 
 let () = Logs.set_level ~all: true (Some Logs.Warning)
 let global_log_level = Ocf.option

@@ -13,11 +13,27 @@ end
 
 let log f = Server_log._debug_lwt f
 
-class r user =
+class r (user:Iri.t option) path =
   object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
     method allowed_methods rd = Wm.continue [`GET ; `POST] rd
+
+    method is_authorized rd = Wm.continue `Authorized rd
+(*    type auth =
+    [ `Authorized
+    | `Basic of string
+    | `Redirect of Uri.t
+]*)
+
+    method forbidden rd =
+      (* FIXME: handle permissions here, according to user,
+         path and method (GET, ...) *)
+      Wm.continue false rd
+
+    method moved_temporarily rd =
+      Wm.continue None rd
+
     method content_types_provided rd =
       let%lwt () = log (fun f -> f "content_types_provided") in
       Wm.continue [
@@ -39,13 +55,15 @@ class r user =
       Wm.continue body { rd with Wm.Rd.resp_body = body }
   end
 
-let http_handler (user, request) body =
-  let req_uri = Cohttp.Request.uri request in
+let http_handler ?user request body =
+  let uri = Cohttp.Request.uri request in
   let%lwt () = log (fun f ->
-       f "HTTP query: %s" (Uri.to_string req_uri))
+       f "HTTP query: %s" (Uri.to_string uri))
   in
   let open Cohttp in
-  let routes = [ "", fun () -> new r user ] in
+  let routes =
+    [ "", fun () -> new r user (Server_fs.filepath_of_uri uri) ]
+  in
   Wm.dispatch' routes ~body ~request
   >|= begin function
     | None        -> (`Not_found, Header.init (), `String "Not found", [])
