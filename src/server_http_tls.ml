@@ -15,7 +15,7 @@ let get_cert_info cert =
     (X509.distinguished_name_to_string issuer)
     (String.concat ", " (X509.hostnames cert))
 
-let server () =
+let server http_handler =
   X509_lwt.private_of_pems
     ~cert:(Ocf.get Server_conf.server_cert)
     ~priv_key:(Ocf.get Server_conf.server_key)
@@ -41,16 +41,19 @@ let server () =
     let uri = req |> Request.uri in
     let uri_s = uri |> Uri.to_string in
     let%lwt () = Ldp_log.__debug_lwt (fun m -> m "New query: %s" uri_s) in
+    http_handler (None, req) body
     (*match Uri.path uri with
         "/private" ->
           let t = Tls_lwt.reneg tls_session
     >>= fun () ->*)
+    (*
     let meth = req |> Request.meth |> Code.string_of_method in
     let headers = req |> Request.headers |> Header.to_string in
     body |> Cohttp_lwt_body.to_string >|= (fun body ->
       (Printf.sprintf "Uri: %s\nMethod: %s\nInfo_conn: %s\nHeaders: %s\nBody: %s"
          uri_s meth info_conn headers body))
     >>= (fun body -> Server.respond_string ~status:`OK ~body ())
+    *)
   in
 (*  let mode = `TLS (
      `Crt_file_path "server-certificates/server.pem",

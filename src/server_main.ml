@@ -18,7 +18,7 @@ let main () =
   | exception Ocf.Error e -> Lwt.fail_with (Ocf.string_of_error e)
   | () ->
      let%lwt () = Server_log._app_lwt (fun m -> m "Starting server") in
-     Server_http_tls.server ()
+     Server_http_tls.server Server_webmachine.http_handler
 
 let () =
   Logs.set_reporter (Server_log.lwt_reporter ());
