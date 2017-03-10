@@ -121,6 +121,7 @@ SERVER_CMXFILES=\
 	cohttp_tls.cmx \
 	server_http_tls.cmx \
 	server_fs.cmx \
+	server_perm.cmx \
 	server_webmachine.cmx \
 	server_main.cmx
 SERVER_CMIFILES=$(SERVER_CMXFILES:.cmx=.cmi)

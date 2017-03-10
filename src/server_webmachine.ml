@@ -29,7 +29,21 @@ class r (user:Iri.t option) path =
     method forbidden rd =
       (* FIXME: handle permissions here, according to user,
          path and method (GET, ...) *)
-      Wm.continue false rd
+      let%lwt rights = Server_perm.rights_for_path user path in
+      let%lwt () = Server_log._debug_lwt
+        (fun m -> m "rights %d to user %s on %s"
+          rights
+          (match user with None -> "NONE" | Some iri -> Iri.to_string iri)
+          (Iri.to_string (Server_fs.iri path)))
+      in
+      let ok =
+        match rd.Wm.Rd.meth with
+          `GET | `OPTIONS | `HEAD -> Server_perm.has_read rights
+        | `POST -> Server_perm.has_write rights || Server_perm.has_append rights
+        | `PUT | `DELETE | `PATCH -> Server_perm.has_write rights
+        | _ -> true
+      in
+      Wm.continue (not ok) rd
 
     method moved_temporarily rd =
       Wm.continue None rd
@@ -57,12 +71,24 @@ class r (user:Iri.t option) path =
 
 let http_handler ?user request body =
   let uri = Cohttp.Request.uri request in
+  let uri = match Uri.scheme uri with
+      None -> Uri.with_scheme uri (Some "https")
+    | Some _ -> uri
+  in
+  let uri = Uri.canonicalize uri in
   let%lwt () = log (fun f ->
        f "HTTP query: %s" (Uri.to_string uri))
   in
+  let%lwt path = Server_fs.path_of_uri uri in
+  let%lwt () =
+    log (fun f ->
+       f "Iri: %s\nFilename: %s"
+         (Iri.to_string (Server_fs.iri path))
+         (Server_fs.path_to_filename path))
+  in
   let open Cohttp in
   let routes =
-    [ "", fun () -> new r user (Server_fs.filepath_of_uri uri) ]
+    [ "*", fun () -> new r user path ]
   in
   Wm.dispatch' routes ~body ~request
   >|= begin function
