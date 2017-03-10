@@ -31,7 +31,7 @@ let auths ~default g iri =
     g.exists ~sub: (Iri a) ~pred ~obj:(Iri iri) ()
   in
   List.filter filter
-    (iri_subjects_of g ~pred:Rdf_dc.type_ ~obj: (Iri acl_c_Authorization))
+    (iri_subjects_of g ~pred:Rdf_rdf.type_ ~obj: (Iri acl_c_Authorization))
 
 let add_rights_of_modes =
   List.fold_left
@@ -49,31 +49,34 @@ let add_rights_of_modes =
 let gather_rights g user acc auth =
   let sub = Iri auth in
   let modes = iri_objects_of g ~sub ~pred:acl_mode in
-  let for_any = g.exists ~sub ~pred:acl_agent ~obj:(Iri (Rdf_foaf.c_Agent)) () in
-  let for_user =
-    match user with
-      None -> false
-    | Some user -> g.exists ~sub ~pred:acl_agent ~obj:(Iri user) ()
-  in
-  if for_any || for_user then
+  if
+    g.exists ~sub ~pred:acl_agentClass ~obj:(Iri (Rdf_foaf.c_Agent)) ()
+      ||
+      match user with
+        None -> false
+      | Some user -> g.exists ~sub ~pred:acl_agent ~obj:(Iri user) ()
+  then
     add_rights_of_modes acc modes
   else
     acc
 
 (** FIXME: we don't handle groups of agent yet *)
-(* FIXME: hand control access over ,acl *)
+(** FIXME: hand control access over ,acl *)
 let rights ~default user g iri =
   let auths = auths ~default g iri in
-(*  let%lwt () =
-
-  in*)
-  List.fold_left (gather_rights g user) no_right auths
+  let%lwt () =
+    Server_log._debug_lwt
+      (fun m -> m "auths for %s:\n  %s" (Iri.to_string iri)
+      (String.concat "\n  " (List.map Iri.to_string auths))
+      )
+  in
+  Lwt.return (List.fold_left (gather_rights g user) no_right auths)
 
 let rights_for_path user p =
   let rec iter ~default p =
     let acl = Server_fs.acl_path p in
     match%lwt Server_fs.read_path_graph acl with
-    | Some g -> Lwt.return (rights ~default user g (Server_fs.iri p))
+    | Some g -> rights ~default user g (Server_fs.iri p)
     | None ->
         match Server_fs.parent p with
           None -> Server_log._err

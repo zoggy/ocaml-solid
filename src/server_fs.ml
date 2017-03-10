@@ -82,7 +82,7 @@ let path_of_uri uri =
   let%lwt kind = kind root rel in
   let iri =
     let path =
-      match kind with Some `Dir -> path @ [] | _ -> path
+      match kind with Some `Dir -> path @ [""] | _ -> path
     in
     Iri.iri ?scheme:(Uri.scheme uri)
       ?user:(Uri.user uri)
@@ -110,7 +110,8 @@ let ext_path suffix kind p =
         | h :: q -> (List.rev ((h ^ suffix) :: q), None)
         | [] -> assert false
   in
-  { p with rel ; kind = Some kind ; mime }
+  let iri = Iri.with_path p.iri (Absolute rel) in
+  { p with iri ; rel ; kind = Some kind ; mime }
 
 let acl_path = ext_path acl_suffix `Acl
 let meta_path = ext_path meta_suffix `Meta
@@ -162,7 +163,7 @@ let parent p =
   | h :: q ->
       let rel = List.rev q in
       let iri = Iri.with_path p.iri (Iri.Absolute (rel @ [""])) in
-      Some 
+      Some
         { iri ; root = p.root ;
           rel ; kind = Some `Dir ; mime = None ;
         }

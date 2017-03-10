@@ -17,18 +17,15 @@ class r (user:Iri.t option) path =
   object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
-    method allowed_methods rd = Wm.continue [`GET ; `POST] rd
+    method allowed_methods rd =
+      Wm.continue [
+        `GET ; `OPTIONS ; `HEAD ;
+        `POST ;`PUT ; `DELETE ; `PATCH
+      ] rd
 
-    method is_authorized rd = Wm.continue `Authorized rd
-(*    type auth =
-    [ `Authorized
-    | `Basic of string
-    | `Redirect of Uri.t
-]*)
+    (*method is_authorized rd = Wm.continue `Authorized rd*)
 
     method forbidden rd =
-      (* FIXME: handle permissions here, according to user,
-         path and method (GET, ...) *)
       let%lwt rights = Server_perm.rights_for_path user path in
       let%lwt () = Server_log._debug_lwt
         (fun m -> m "rights %d to user %s on %s"
