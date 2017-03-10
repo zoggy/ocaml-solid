@@ -117,8 +117,14 @@ module Make (P:P) : Ldp_http.Requests =
       let conn = Curl.init () in
       Curl.set_header conn true ;
       Curl.set_url conn (Iri.to_uri iri) ;
+
       Curl.set_sslverifypeer conn true;
       Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_HOSTNAME;
+
+      (* Uncomment this to test without ssl checks
+      Curl.set_sslverifypeer conn false;
+      Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_NONE;
+      *)
       Curl.set_sslcert conn P.cert ;
       Curl.set_sslkey conn P.key ;
       begin
