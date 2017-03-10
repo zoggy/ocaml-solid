@@ -52,10 +52,28 @@ class r (user:Iri.t option) path =
 
     method resource_exists rd =
       match Server_fs.kind path with
-        Some _ -> Wm.continue true rd
       | None ->
           let rd = error_rd rd "Not found" "Not found" in
           Wm.continue false rd
+      | Some `Dir ->
+          (* if request uri does not end with / for a directory (container),
+             then send a moved_temporarily:
+             - declare that no such resource exists
+             - previously_existed returns true for a `Dir
+             - moved_temporarily returns new uri
+          *)
+          let req_path = Uri.path rd.Wm.Rd.uri in
+          let len = String.length req_path in
+          let end_with_slash =
+            len > 0 && String.get req_path (len-1) = '/'
+          in
+          Wm.continue end_with_slash rd
+      | Some _ -> Wm.continue true rd
+
+    method previously_existed rd =
+      match Server_fs.kind path with
+        Some `Dir -> Wm.continue true rd
+      | _ -> Wm.continue false rd
 
     method allowed_methods rd =
       Wm.continue [
@@ -83,7 +101,19 @@ class r (user:Iri.t option) path =
       Wm.continue (not ok) rd
 
     method moved_temporarily rd =
-      Wm.continue None rd
+      let%lwt () = Server_log._debug_lwt (fun m -> m "moved temporarily ?") in
+      match Server_fs.kind path with
+      | Some `Dir ->
+          begin
+            let req_path = Uri.path rd.Wm.Rd.uri in
+            let len = String.length req_path in
+            if len <= 0 || String.get req_path (len-1) <> '/' then
+              let uri = Iri.to_uri (Server_fs.iri path) in
+              Wm.continue (Some (Uri.of_string uri)) rd
+            else
+              Wm.continue None rd
+          end
+      | _ -> Wm.continue None rd
 
     method content_types_provided rd =
       let%lwt () = log (fun f -> f "content_types_provided") in
