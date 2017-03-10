@@ -278,7 +278,7 @@ module Cached_http (C:Cache) (P:Requests) =
       e ~obj: (Rdf_term.Iri Ldp.c_BasicContainer) () ||
         e ~obj: (Rdf_term.Iri Ldp.c_Container) ()
 
-    let get ?(accept=Printf.sprintf "%s, *" mime_turtle) ?(parse=true) iri =
+    let get ?(accept=Printf.sprintf "%s, */*" mime_turtle) ?(parse=true) iri =
       let headers = Header.init_with "Accept" accept in
       cached_get ~headers iri >>= fun (resp, body) ->
       let header = resp.Response.headers in
