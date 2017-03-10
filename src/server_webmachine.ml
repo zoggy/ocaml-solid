@@ -51,6 +51,26 @@ let request_uri_path_ends_with_slash rd =
   let len = String.length req_path in
   len > 0 && String.get req_path (len-1) = '/'
 
+(* FIXME: check if meta of resource R has an acl resource
+   or shares the one of R *)
+let rd_add_acl_meta path rd =
+  match Server_fs.kind path with
+  | Some (`Dir | `File | `Acl) ->
+      let acl = Server_fs.acl_path path in
+      let meta = Server_fs.meta_path path in
+      let acl_iri = Iri.to_string (Server_fs.iri acl) in
+      let meta_iri = Iri.to_string (Server_fs.iri meta) in
+      Wm.Rd.with_resp_headers (fun h ->
+         let h = Cohttp.Header.add_multi h
+           "link" [
+             Printf.sprintf "%s; rel=\"acl\"" acl_iri ;
+             Printf.sprintf "%s; rel=\"meta\"" meta_iri ;
+           ]
+         in
+         h)
+        rd
+  | Some `Meta | None -> rd
+
 class r (user:Iri.t option) path =
   object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -134,7 +154,7 @@ class r (user:Iri.t option) path =
           ] rd
       | _ ->
           Wm.continue [
-            ("application/xhtml+xml", self#to_html);
+            (mime_xhtml, self#to_html);
             ("application/json", self#to_json);
           ] rd
 
@@ -144,12 +164,16 @@ class r (user:Iri.t option) path =
     method private to_container_ttl rd =
       let%lwt g = Server_fs.create_container_graph path in
       let body = `String (Rdf_ttl.to_string g) in
-      Wm.continue body { rd with Wm.Rd.resp_body = body }
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta path rd in
+      Wm.continue body rd
 
     method private to_container_xmlrdf rd =
       let%lwt g = Server_fs.create_container_graph path in
       let body = `String (Rdf_xml.to_string g) in
-      Wm.continue body { rd with Wm.Rd.resp_body = body }
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta path rd in
+      Wm.continue body rd
 
     method private to_meta_ttl rd =
       let file = Server_fs.path_to_filename path in
@@ -159,7 +183,9 @@ class r (user:Iri.t option) path =
         | Some str -> Lwt.return str
       in
       let body = `String str in
-      Wm.continue body { rd with Wm.Rd.resp_body = body }
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta path rd in
+      Wm.continue body rd
 
     method private to_meta_xmlrdf rd =
       let%lwt body =
@@ -168,7 +194,9 @@ class r (user:Iri.t option) path =
         | Some g ->Lwt.return (Rdf_xml.to_string g)
       in
       let body = `String body in
-      Wm.continue body { rd with Wm.Rd.resp_body = body }
+      let rd =  { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta path rd in
+      Wm.continue body rd
 
     method private to_acl_ttl rd =
       let file = Server_fs.path_to_filename path in
@@ -178,7 +206,9 @@ class r (user:Iri.t option) path =
         | Some str -> Lwt.return str
       in
       let body = `String str in
-      Wm.continue body { rd with Wm.Rd.resp_body = body }
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta path rd in
+      Wm.continue body rd
 
     method private to_acl_xmlrdf rd =
       let%lwt body =
@@ -187,7 +217,9 @@ class r (user:Iri.t option) path =
         | Some g ->Lwt.return (Rdf_xml.to_string g)
       in
       let body = `String body in
-      Wm.continue body { rd with Wm.Rd.resp_body = body }
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta path rd in
+      Wm.continue body rd
 
     method private to_html rd =
       let%lwt () = log (fun f -> f "to_html") in
@@ -198,6 +230,13 @@ class r (user:Iri.t option) path =
       let json = {| { error : "json interface not implemented yet" } |} in
       let body = `String json in
       Wm.continue body { rd with Wm.Rd.resp_body = body }
+
+    method finish_request rd =
+      let rd = Wm.Rd.with_resp_headers (fun h ->
+         Cohttp.Header.add h "Access-Control-Allow-Origin" "*")
+        rd
+      in
+      Wm.continue () rd
   end
 
 let http_handler ?user request body =

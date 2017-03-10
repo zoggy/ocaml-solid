@@ -133,10 +133,10 @@ let parse ?(options=[]) ?(usage=usage) () =
       " <dir> do not use cache" ;
 
       "--debug", Arg.Unit debug,
-      " <dir> debug mode on" ;
+      " debug mode on" ;
 
       "--nodebug", Arg.Unit nodebug,
-      " <dir> debug mode off" ;
+      " debug mode off" ;
     ]
   in
   let args = ref [] in

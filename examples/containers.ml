@@ -8,7 +8,7 @@ module P = Solid_profile.Make(H)
 module C = Ldp_containers.Make(H)
 open Ldp_containers
 
-let iri = Iri.of_string "https://zoggy.databox.me"
+let iri = Iri.of_string "https://localhost:9999/~zoggy/"
 
 
 let node_children t =
