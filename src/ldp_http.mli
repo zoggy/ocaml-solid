@@ -16,6 +16,7 @@ val get_link : ('a * 'b) list -> 'a -> 'b option
 val string_of_metadata : Ldp_types.meta -> string
 
 val mime_turtle : string
+val mime_xmlrdf : string
 
 module type Requests =
   sig

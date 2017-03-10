@@ -85,7 +85,7 @@ class r (user:Iri.t option) path =
 
     method forbidden rd =
       let%lwt rights = Server_perm.rights_for_path user path in
-      let%lwt () = Server_log._debug_lwt
+      let%lwt () = log
         (fun m -> m "rights %d to user %s on %s"
           rights
           (match user with None -> "NONE" | Some iri -> Iri.to_string iri)
@@ -101,12 +101,10 @@ class r (user:Iri.t option) path =
       Wm.continue (not ok) rd
 
     method moved_temporarily rd =
-      let%lwt () = Server_log._debug_lwt (fun m -> m "moved temporarily ?") in
+      let%lwt () = log (fun m -> m "moved temporarily ?") in
       match Server_fs.kind path with
       | Some `Dir ->
           begin
-            let req_path = Uri.path rd.Wm.Rd.uri in
-            let len = String.length req_path in
             if request_uri_path_ends_with_slash rd then
               Wm.continue None rd
             else
@@ -117,13 +115,31 @@ class r (user:Iri.t option) path =
 
     method content_types_provided rd =
       let%lwt () = log (fun f -> f "content_types_provided") in
-      Wm.continue [
-        ("application/xhtml+xml", self#to_html);
-        ("application/json", self#to_json);
-      ] rd
+      match Server_fs.kind path with
+        Some `Dir ->
+          Wm.continue [
+            Ldp_http.mime_turtle, self#to_container_ttl ;
+            Ldp_http.mime_xmlrdf, self#to_container_xmlrdf ;
+          ] rd
+          (* FIXME: provide also simple HTML page *)
+      | _ ->
+          Wm.continue [
+            ("application/xhtml+xml", self#to_html);
+            ("application/json", self#to_json);
+          ] rd
 
     method content_types_accepted rd =
       Wm.continue [] rd
+
+    method private to_container_ttl rd =
+      let%lwt g = Server_fs.create_container_graph path in
+      let body = `String (Rdf_ttl.to_string g) in
+      Wm.continue body { rd with Wm.Rd.resp_body = body }
+
+    method private to_container_xmlrdf rd =
+      let%lwt g = Server_fs.create_container_graph path in
+      let body = `String (Rdf_xml.to_string g) in
+      Wm.continue body { rd with Wm.Rd.resp_body = body }
 
     method private to_html rd =
       let%lwt () = log (fun f -> f "to_html") in

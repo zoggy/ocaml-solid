@@ -158,26 +158,94 @@ let path_mime p =
               p.mime <- Some lit.lit_value ;
               Lwt.return (Some lit.lit_value)
 
+let iri_parent_path =
+  let rec remove_empty_strings = function
+    "" :: q -> remove_empty_strings q
+  | x -> x
+  in
+  fun iri ->
+    let path =
+      match Iri.path iri with
+        Iri.Relative p
+      | Iri.Absolute p -> p
+    in
+    let path = remove_empty_strings (List.rev path) in
+    match path with
+      [] -> None
+    | h :: q ->
+        let path = List.rev (""::q) in
+        let iri =
+          match Iri.path iri with
+          | Iri.Relative _ -> Iri.with_path iri (Iri.Relative path)
+          | Iri.Absolute _ -> Iri.with_path iri (Iri.Absolute path)
+        in
+        Some iri
+
 let parent p =
   match List.rev p.rel with
     [] -> None
   | h :: q ->
       let rel = List.rev q in
-      let iri =
-        (* FIXME: add a better function in Iri, handling
-           multiple // in path for example *)
-        match Iri.path p.iri with
-        | Iri.Relative _ -> assert false
-        | Iri.Absolute path ->
-            match List.rev path with
-              [] -> assert false
-            | "" :: h :: q
-            | h :: q ->
-                Iri.with_path p.iri (Iri.Absolute (q @ [""]))
-      in
-      Some
-        { iri ; root = p.root ;
-          rel ; kind = Some `Dir ; mime = None ;
-        }
+      match iri_parent_path p.iri with
+        None -> assert false
+      | Some iri ->
+          Some
+            { iri ; root = p.root ;
+              rel ; kind = Some `Dir ; mime = None ;
+            }
 
-  
+let container_graph_of_dir iri dirname =
+  let g = Rdf_graph.open_graph iri in
+  let sub = Rdf_term.Iri iri in
+  let pred_contains = Rdf_ldp.contains in
+  let add_file g file =
+    if file = Filename.current_dir_name
+      || file = Filename.parent_dir_name
+        || Filename.check_suffix file acl_suffix
+        || Filename.check_suffix file meta_suffix
+    then
+      Lwt.return_unit
+    else
+      let absname = Filename.concat dirname file in
+      match%lwt Lwt_unix.stat absname with
+      | exception e ->
+          let%lwt () = Server_log._err_lwt
+            (fun m -> m "%s: %s" absname (Printexc.to_string e))
+          in
+          Lwt.return_unit
+      | { Unix.st_kind = Unix.S_REG | Unix.S_DIR } as st ->
+          let obj =
+            let file =
+              if st.Unix.st_kind = Unix.S_DIR then
+                file^"/"
+              else
+                file
+            in
+            let iri = Iri.normalize (Iri.append_path iri [file]) in
+            (* normalize will remove // *)
+            Rdf_term.Iri iri
+          in
+          g.Rdf_graph.add_triple ~sub ~pred: pred_contains ~obj;
+          Lwt.return_unit
+      | _ -> Lwt.return_unit
+  in
+  try%lwt
+    let%lwt () = Lwt_stream.iter_s (add_file g)
+      (Lwt_unix.files_of_directory dirname)
+    in
+    g.Rdf_graph.add_triple ~sub ~pred: Rdf_rdf.type_
+      ~obj:(Rdf_term.Iri Rdf_ldp.c_Container) ;
+    g.Rdf_graph.add_triple ~sub ~pred: Rdf_rdf.type_
+      ~obj:(Rdf_term.Iri Rdf_ldp.c_BasicContainer) ;
+    Lwt.return g
+  with e ->
+      let%lwt () = Server_log._err_lwt
+        (fun m -> m "%s: %s" dirname (Printexc.to_string e))
+      in
+      Lwt.return g
+
+let create_container_graph p =
+  match p.kind with
+    Some `Dir -> container_graph_of_dir p.iri (path_to_filename p)
+  | None | Some `File | Some `Acl | Some `Meta ->
+      assert false
