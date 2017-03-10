@@ -24,7 +24,7 @@ let has_control r = r land 8 <> 0
 
 (* FIXME: acl:defautlForNew will be renamed acl:default *)
 let auths ~default g iri =
-  (*prerr_endline (Rdf_ttl.to_string g);*)
+  prerr_endline (Rdf_ttl.to_string g);
   let pred =
     if default then acl_defaultForNew else acl_accessTo
   in

@@ -111,7 +111,19 @@ let ext_path suffix kind p =
         | h :: q -> (List.rev ((h ^ suffix) :: q), None)
         | [] -> assert false
   in
-  let iri = Iri.with_path p.iri (Iri.Absolute rel) in
+  let iri =
+    if rel = p.rel then
+      p.iri
+    else
+      match Iri.path p.iri with
+      | Iri.Relative _ -> assert false
+      | Iri.Absolute path ->
+          match List.rev path with
+            [] -> assert false
+          | h :: q ->
+              let path = List.rev ((h^suffix)::q) in
+              Iri.with_path p.iri (Iri.Absolute path)
+  in
   { p with iri ; rel ; kind = Some kind ; mime }
 
 let acl_path = ext_path acl_suffix `Acl

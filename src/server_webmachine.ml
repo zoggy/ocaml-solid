@@ -122,6 +122,16 @@ class r (user:Iri.t option) path =
             Ldp_http.mime_xmlrdf, self#to_container_xmlrdf ;
           ] rd
           (* FIXME: provide also simple HTML page *)
+      | Some `Acl ->
+          Wm.continue [
+            Ldp_http.mime_turtle, self#to_acl_ttl ;
+            Ldp_http.mime_xmlrdf, self#to_acl_xmlrdf ;
+          ] rd
+      | Some `Meta ->
+          Wm.continue [
+            Ldp_http.mime_turtle, self#to_meta_ttl ;
+            Ldp_http.mime_xmlrdf, self#to_meta_xmlrdf ;
+          ] rd
       | _ ->
           Wm.continue [
             ("application/xhtml+xml", self#to_html);
@@ -139,6 +149,44 @@ class r (user:Iri.t option) path =
     method private to_container_xmlrdf rd =
       let%lwt g = Server_fs.create_container_graph path in
       let body = `String (Rdf_xml.to_string g) in
+      Wm.continue body { rd with Wm.Rd.resp_body = body }
+
+    method private to_meta_ttl rd =
+      let file = Server_fs.path_to_filename path in
+      let%lwt str =
+        match%lwt Server_fs.string_of_file file with
+        | None -> Lwt.return ""
+        | Some str -> Lwt.return str
+      in
+      let body = `String str in
+      Wm.continue body { rd with Wm.Rd.resp_body = body }
+
+    method private to_meta_xmlrdf rd =
+      let%lwt body =
+        match%lwt Server_fs.read_path_graph path with
+        | None -> Lwt.return ""
+        | Some g ->Lwt.return (Rdf_xml.to_string g)
+      in
+      let body = `String body in
+      Wm.continue body { rd with Wm.Rd.resp_body = body }
+
+    method private to_acl_ttl rd =
+      let file = Server_fs.path_to_filename path in
+      let%lwt str =
+        match%lwt Server_fs.string_of_file file with
+        | None -> Lwt.return ""
+        | Some str -> Lwt.return str
+      in
+      let body = `String str in
+      Wm.continue body { rd with Wm.Rd.resp_body = body }
+
+    method private to_acl_xmlrdf rd =
+      let%lwt body =
+        match%lwt Server_fs.read_path_graph path with
+        | None -> Lwt.return ""
+        | Some g ->Lwt.return (Rdf_xml.to_string g)
+      in
+      let body = `String body in
       Wm.continue body { rd with Wm.Rd.resp_body = body }
 
     method private to_html rd =
