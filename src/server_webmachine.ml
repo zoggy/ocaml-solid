@@ -46,6 +46,11 @@ let error_rd rd title message =
   in
   rd
 
+let request_uri_path_ends_with_slash rd =
+  let req_path = Uri.path rd.Wm.Rd.uri in
+  let len = String.length req_path in
+  len > 0 && String.get req_path (len-1) = '/'
+
 class r (user:Iri.t option) path =
   object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
@@ -62,12 +67,7 @@ class r (user:Iri.t option) path =
              - previously_existed returns true for a `Dir
              - moved_temporarily returns new uri
           *)
-          let req_path = Uri.path rd.Wm.Rd.uri in
-          let len = String.length req_path in
-          let end_with_slash =
-            len > 0 && String.get req_path (len-1) = '/'
-          in
-          Wm.continue end_with_slash rd
+          Wm.continue (request_uri_path_ends_with_slash rd) rd
       | Some _ -> Wm.continue true rd
 
     method previously_existed rd =
@@ -107,11 +107,11 @@ class r (user:Iri.t option) path =
           begin
             let req_path = Uri.path rd.Wm.Rd.uri in
             let len = String.length req_path in
-            if len <= 0 || String.get req_path (len-1) <> '/' then
+            if request_uri_path_ends_with_slash rd then
+              Wm.continue None rd
+            else
               let uri = Iri.to_uri (Server_fs.iri path) in
               Wm.continue (Some (Uri.of_string uri)) rd
-            else
-              Wm.continue None rd
           end
       | _ -> Wm.continue None rd
 
