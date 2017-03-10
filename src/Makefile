@@ -26,7 +26,7 @@
 include ../master.Makefile
 
 OCAMLFIND=ocamlfind
-COMPFLAGS=-annot -safe-string -g
+COMPFLAGS=-annot -safe-string -g -rectypes
 OF_FLAGS=-package $(PACKAGES),$(JS_PACKAGES),$(TLS_PACKAGES),$(CURL_PACKAGES)
 OF_FLAGS_SERVER=$(OF_FLAGS) -package $(SERVER_PACKAGES)
 OF_FLAGS_COMP=$(OF_FLAGS_SERVER)

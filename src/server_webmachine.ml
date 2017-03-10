@@ -13,9 +13,49 @@ end
 
 let log f = Server_log._debug_lwt f
 
+let mime_xhtml = "application/xhtml+xml"
+let mime_xhtml_charset = "application/xhtml+xml;charset=utf-8"
+let mime_html = "text/html"
+
+let error_page title message =
+  let module Xh = Xtmpl_xhtml in
+  let module X = Xtmpl_rewrite in
+  let xml =
+    Xh.html
+      ~atts: (X.atts_one ("","xmlns") [X.cdata "http://www.w3.org/1999/xhtml"])
+      [
+        Xh.header
+          [
+            Xh.title [X.cdata title] ;
+            Xh.meta ~atts:(X.atts_of_list
+             [ ("","http-equiv"), [X.cdata "Content-Type"] ;
+               ("","content"), [X.cdata mime_xhtml_charset] ;
+             ]) [] ;
+          ];
+        Xh.body [X.cdata message] ;
+      ]
+  in
+  X.to_string [xml]
+
+let error_rd rd title message =
+  let body = error_page title message in
+  let rd = { rd with Wm.Rd.resp_body = `String body } in
+  let rd = Wm.Rd.with_resp_headers
+    (fun h -> Cohttp.Header.add h "content-type" mime_xhtml_charset)
+      rd
+  in
+  rd
+
 class r (user:Iri.t option) path =
   object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
+
+    method resource_exists rd =
+      match Server_fs.kind path with
+        Some _ -> Wm.continue true rd
+      | None ->
+          let rd = error_rd rd "Not found" "Not found" in
+          Wm.continue false rd
 
     method allowed_methods rd =
       Wm.continue [

@@ -24,10 +24,13 @@ let has_control r = r land 8 <> 0
 
 (* FIXME: acl:defautlForNew will be renamed acl:default *)
 let auths ~default g iri =
+  (*prerr_endline (Rdf_ttl.to_string g);*)
+  let pred =
+    if default then acl_defaultForNew else acl_accessTo
+  in
   let filter a =
-    let pred =
-      if default then acl_defaultForNew else acl_accessTo
-    in
+    (*prerr_endline (Printf.sprintf "filter sub=%s, pred=%s, obj=%s"
+      (Iri.to_string a) (Iri.to_string pred) (Iri.to_string iri));*)
     g.exists ~sub: (Iri a) ~pred ~obj:(Iri iri) ()
   in
   List.filter filter

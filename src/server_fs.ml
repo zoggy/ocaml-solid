@@ -99,6 +99,7 @@ let path_to_filename p =
   | Some _ | None -> fname
 
 let iri p = p.iri
+let kind p = p.kind
 
 let ext_path suffix kind p =
   let (rel, mime) =
@@ -110,7 +111,7 @@ let ext_path suffix kind p =
         | h :: q -> (List.rev ((h ^ suffix) :: q), None)
         | [] -> assert false
   in
-  let iri = Iri.with_path p.iri (Absolute rel) in
+  let iri = Iri.with_path p.iri (Iri.Absolute rel) in
   { p with iri ; rel ; kind = Some kind ; mime }
 
 let acl_path = ext_path acl_suffix `Acl
@@ -162,7 +163,18 @@ let parent p =
     [] -> None
   | h :: q ->
       let rel = List.rev q in
-      let iri = Iri.with_path p.iri (Iri.Absolute (rel @ [""])) in
+      let iri =
+        (* FIXME: add a better function in Iri, handling
+           multiple // in path for example *)
+        match Iri.path p.iri with
+        | Iri.Relative _ -> assert false
+        | Iri.Absolute path ->
+            match List.rev path with
+              [] -> assert false
+            | "" :: h :: q
+            | h :: q ->
+                Iri.with_path p.iri (Iri.Absolute (q @ [""]))
+      in
       Some
         { iri ; root = p.root ;
           rel ; kind = Some `Dir ; mime = None ;
