@@ -152,11 +152,17 @@ class r (user:Iri.t option) path =
             Ldp_http.mime_turtle, self#to_meta_ttl ;
             Ldp_http.mime_xmlrdf, self#to_meta_xmlrdf ;
           ] rd
-      | _ ->
-          Wm.continue [
-            (mime_xhtml, self#to_html);
-            ("application/json", self#to_json);
-          ] rd
+      | Some `File ->
+          begin
+            match%lwt Server_fs.path_mime path with
+              None -> Wm.continue ["*/*", self#to_raw] rd
+            | Some mime ->
+                (* FIXME: offer some more formats depending on mime,
+                   like rdf conversions *)
+                Wm.continue [mime, self#to_raw] rd
+          end
+      | None ->
+          Wm.continue ["*/*", self#to_raw] rd
 
     method content_types_accepted rd =
       Wm.continue [] rd
@@ -221,16 +227,19 @@ class r (user:Iri.t option) path =
       let rd = rd_add_acl_meta path rd in
       Wm.continue body rd
 
-    method private to_html rd =
-      let%lwt () = log (fun f -> f "to_html") in
-      Wm.continue (`String "<html><body>hello</body></html>") rd
-
-    method private to_json rd =
-      let%lwt () = log (fun f -> f "to_json") in
-      let json = {| { error : "json interface not implemented yet" } |} in
-      let body = `String json in
-      Wm.continue body { rd with Wm.Rd.resp_body = body }
-
+    method private to_raw rd =
+      (* FIXME: improve this with a stream body *)
+      let file = Server_fs.path_to_filename path in
+      let%lwt str =
+        match%lwt Server_fs.string_of_file file with
+        | None -> Lwt.return ""
+        | Some str -> Lwt.return str
+      in
+      let body = `String str in
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta path rd in
+      Wm.continue body rd
+      
     method finish_request rd =
       let rd = Wm.Rd.with_resp_headers (fun h ->
          Cohttp.Header.add h "Access-Control-Allow-Origin" "*")
