@@ -47,6 +47,22 @@ let get_link links rel =
   try Some (List.assoc rel links)
   with Not_found -> None
 
+let container_types =
+  Iri.Set.of_list
+    [ Rdf_ldp.c_BasicContainer ;
+      Rdf_ldp.c_Container ;
+    ]
+
+let type_is_container =
+  fun iri -> Iri.Set.mem iri container_types
+
+let is_container g =
+  let sub = Rdf_term.Iri (g.Rdf_graph.name ()) in
+  let e i =
+    g.Rdf_graph.exists ~sub ~pred: Rdf_rdf.type_ ~obj:(Rdf_term.Iri i) ()
+  in
+  Iri.Set.exists e container_types
+
 let string_of_metadata m =
   let b = Buffer.create 256 in
   let p = Printf.bprintf b in
@@ -112,7 +128,6 @@ module type Http =
       ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
     val get_container : ?g:Rdf_graph.graph ->
       ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
-    val is_container : Rdf_graph.graph -> bool
     val get : ?accept:string -> ?parse:bool -> Iri.t -> Ldp_types.resource Lwt.t
     val post :
       ?data:string ->
@@ -271,12 +286,6 @@ module Cached_http (C:Cache) (P:Requests) =
         | _ -> assert false
 
     let get_container = get_rdf_graph
-
-    let is_container g =
-      let sub = Rdf_term.Iri (g.Rdf_graph.name ()) in
-      let e = g.Rdf_graph.exists ~sub ~pred: Rdf_rdf.type_ in
-      e ~obj: (Rdf_term.Iri Ldp.c_BasicContainer) () ||
-        e ~obj: (Rdf_term.Iri Ldp.c_Container) ()
 
     let get ?(accept=Printf.sprintf "%s, */*" mime_turtle) ?(parse=true) iri =
       let headers = Header.init_with "Accept" accept in

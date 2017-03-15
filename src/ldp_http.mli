@@ -18,6 +18,9 @@ val string_of_metadata : Ldp_types.meta -> string
 val mime_turtle : string
 val mime_xmlrdf : string
 
+val type_is_container : Iri.t -> bool
+val is_container : Rdf_graph.graph -> bool
+
 module type Requests =
   sig
     val dbg : string -> unit Lwt.t
@@ -74,8 +77,6 @@ module type Http =
       ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
     val get_container : ?g:Rdf_graph.graph ->
       ?accept:string -> Iri.t -> Rdf_graph.graph Lwt.t
-
-    val is_container : Rdf_graph.graph -> bool
 
     (** @param parse default is [true]. Parse or not the retrieved
       resource if mime-type is text/turtle. *)

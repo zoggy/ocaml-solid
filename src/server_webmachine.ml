@@ -63,13 +63,51 @@ let rd_add_acl_meta path rd =
       Wm.Rd.with_resp_headers (fun h ->
          let h = Cohttp.Header.add_multi h
            "link" [
-             Printf.sprintf "%s; rel=\"acl\"" acl_iri ;
-             Printf.sprintf "%s; rel=\"meta\"" meta_iri ;
+             Printf.sprintf "<%s>; rel=\"acl\"" acl_iri ;
+             Printf.sprintf "<%s>; rel=\"meta\"" meta_iri ;
            ]
          in
          h)
         rd
   | Some `Meta | None -> rd
+
+let content_type_of_rd rd =
+  let h = rd.Wm.Rd.req_headers in
+  match Cohttp.Header.get h "content-type" with
+  | None -> Ldp_http.mime_turtle
+  | Some str -> str
+
+let link_type_of_rd rd =
+  let h = rd.Wm.Rd.req_headers in
+  match Cohttp.Header.get h "link" with
+    None -> None
+  | Some str ->
+      let links = Iri.parse_http_link str in
+      try Some (List.assoc "type" links)
+      with Not_found -> None
+
+let fix_slug_field =
+  let safe_slug b () _i = function
+    `Malformed str -> ()
+  | `Uchar codepoint ->
+      if Iri_types.host_safe_char codepoint then
+        Uutf.Buffer.add_utf_8 b codepoint
+      else
+        ()
+  in
+  fun rd ->
+    let h = rd.Wm.Rd.req_headers in
+    match Cohttp.Header.get h "slug" with
+    | None -> rd
+    | Some str ->
+        let str = Iri_types.pct_decode str in
+        let str = Uunf_string.normalize_utf_8 `NFKC str in
+        let b = Buffer.create (String.length str) in
+        Uutf.String.fold_utf_8 (safe_slug b) () str;
+        let field = Buffer.contents b in
+        Wm.Rd.with_req_headers
+          (fun h -> Cohttp.Header.replace h "slug" field)
+          rd
 
 class r (user:Iri.t option) path =
   object(self)
@@ -95,6 +133,8 @@ class r (user:Iri.t option) path =
         Some `Dir -> Wm.continue true rd
       | _ -> Wm.continue false rd
 
+    (* method options rd : ((string * string) list, 'body) op *)
+
     method allowed_methods rd =
       Wm.continue [
         `GET ; `OPTIONS ; `HEAD ;
@@ -102,6 +142,12 @@ class r (user:Iri.t option) path =
       ] rd
 
     (*method is_authorized rd = Wm.continue `Authorized rd*)
+
+    method malformed_request rd =
+      (* if request contains a slug field, make sure it contains
+         only valid characters so wa can use it blindly later *)
+       let rd = fix_slug_field rd in
+       Wm.continue false rd
 
     method forbidden rd =
       let%lwt rights = Server_perm.rights_for_path user path in
@@ -111,14 +157,31 @@ class r (user:Iri.t option) path =
           (match user with None -> "NONE" | Some iri -> Iri.to_string iri)
           (Iri.to_string (Server_fs.iri path)))
       in
-      let ok =
+      let%lwt ok =
         match rd.Wm.Rd.meth with
-          `GET | `OPTIONS | `HEAD -> Server_perm.has_read rights
-        | `POST -> Server_perm.has_write rights || Server_perm.has_append rights
-        | `PUT | `DELETE | `PATCH -> Server_perm.has_write rights
-        | _ -> true
+          `GET | `OPTIONS | `HEAD ->
+            Lwt.return (Server_perm.has_read rights)
+        | `POST ->
+            Server_fs.path_is_container path >|=
+              (&&) (Server_perm.has_write rights || Server_perm.has_append rights)
+        | `PUT | `DELETE | `PATCH ->
+            Lwt.return (Server_perm.has_write rights)
+        | _ -> Lwt.return_true
       in
       Wm.continue (not ok) rd
+
+    (** [`POST] requests will call this method. Returning true indicates the
+         POST succeeded. *)
+    method process_post rd =
+      (* we can POST only into containers *)
+      match%lwt Server_fs.path_is_container path with
+      | false -> Wm.continue false rd
+      | true ->
+          let slug = Cohttp.Header.get rd.Wm.Rd.req_headers in
+          match link_type_of_rd rd with
+            Some iri when Ldp_http.type_is_container iri ->
+              assert false
+          | _ -> assert false
 
     method moved_temporarily rd =
       let%lwt () = log (fun m -> m "moved temporarily ?") in
@@ -162,7 +225,7 @@ class r (user:Iri.t option) path =
                 Wm.continue [mime, self#to_raw] rd
           end
       | None ->
-          Wm.continue ["*/*", self#to_raw] rd
+          Wm.continue ["*", self#to_raw] rd
 
     method content_types_accepted rd =
       Wm.continue [] rd
@@ -239,7 +302,7 @@ class r (user:Iri.t option) path =
       let rd = { rd with Wm.Rd.resp_body = body } in
       let rd = rd_add_acl_meta path rd in
       Wm.continue body rd
-      
+
     method finish_request rd =
       let rd = Wm.Rd.with_resp_headers (fun h ->
          Cohttp.Header.add h "Access-Control-Allow-Origin" "*")

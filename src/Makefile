@@ -36,6 +36,7 @@ CP=cp -f
 MKDIR=mkdir -p
 
 COMMON_CMXFILES= \
+	ldp_misc.cmx \
 	ldp_log.cmx \
 	ldp_types.cmx \
 	ldp_http.cmx \

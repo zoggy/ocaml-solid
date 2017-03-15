@@ -48,7 +48,7 @@ type path =
 let acl_suffix = ",acl"
 let meta_suffix = ",meta"
 
-let kind root rel =
+let get_kind root rel =
   let fname = List.fold_left Filename.concat root rel in
   try%lwt
     let%lwt st = Lwt_unix.stat fname in
@@ -79,7 +79,7 @@ let path_of_uri uri =
         else
           (documents(), path)
   in
-  let%lwt kind = kind root rel in
+  let%lwt kind = get_kind root rel in
   let iri =
     let path =
       match kind with Some `Dir -> path @ [""] | _ -> path
@@ -261,3 +261,66 @@ let create_container_graph p =
     Some `Dir -> container_graph_of_dir p.iri (path_to_filename p)
   | None | Some `File | Some `Acl | Some `Meta ->
       assert false
+
+let path_is_container path =
+  match path.kind with
+    Some `Dir ->
+      begin
+        let meta = meta_path path in
+        match%lwt read_path_graph meta with
+          None -> Lwt.return_false
+        | Some g -> Lwt.return (Ldp_http.is_container g)
+      end
+  | _ -> Lwt.return_false
+
+let iri_append_path iri strings =
+  let p =
+    match Iri.path iri with
+      Iri.Absolute l | Iri.Relative l -> l
+  in
+  let p =
+    match List.rev p with
+    | "" :: q -> q
+    | _ -> p
+  in
+  let p = List.rev p @ strings in
+  let p =
+    match Iri.path iri with
+      Iri.Absolute _ -> Iri.Absolute p
+    | Iri.Relative _ -> Iri.Relative p
+  in
+  Iri.with_path iri p
+
+let on_available_dir_entry =
+  let rec iter f dir slug cpt =
+    let basename =
+      if cpt = 0 then slug else Printf.sprintf "%s-%d" slug cpt
+    in
+    let file = Filename.concat dir basename in
+    if%lwt Lwt_unix.file_exists file then
+      iter f dir slug (cpt+1)
+    else
+      if%lwt f file then Lwt.return_some basename else Lwt.return_none
+  in
+  fun f ?(slug="") path ->
+    match path.kind with
+    | Some `Dir ->
+        begin
+          let dir = path_to_filename path in
+          (* [iter f ...] returns basename if file/dir was created *)
+          match%lwt iter f dir slug (if slug = "" then 1 else 0)  with
+          | None -> Lwt.return_none
+          | Some basename ->
+              let rel = path.rel @ [ basename ] in
+              let%lwt kind = get_kind path.root rel in
+              let iri =
+                let l = match kind with
+                  | Some `Dir -> [basename ; ""]
+                  | _ -> [basename]
+                in
+                iri_append_path path.iri l
+              in
+              Lwt.return_some
+                { root = path.root; rel ; iri ; kind ; mime = None }
+        end
+    | _ -> Lwt.return_none

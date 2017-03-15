@@ -10,7 +10,6 @@ open Ldp_containers
 
 let iri = Iri.of_string "https://localhost:9999/~zoggy/"
 
-
 let node_children t =
   match t with
     CONT (iri, l) -> l
