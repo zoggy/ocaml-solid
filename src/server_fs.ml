@@ -109,7 +109,7 @@ let ext_path suffix kind p =
     | _ ->
         match List.rev p.rel with
         | h :: q -> (List.rev ((h ^ suffix) :: q), None)
-        | [] -> assert false
+        | [] -> ([suffix], None)
   in
   let iri =
     if rel = p.rel then
@@ -118,11 +118,12 @@ let ext_path suffix kind p =
       match Iri.path p.iri with
       | Iri.Relative _ -> assert false
       | Iri.Absolute path ->
-          match List.rev path with
-            [] -> assert false
-          | h :: q ->
-              let path = List.rev ((h^suffix)::q) in
-              Iri.with_path p.iri (Iri.Absolute path)
+          let path =
+            match List.rev path with
+              [] -> [suffix]
+            | h :: q -> List.rev ((h^suffix)::q)
+          in
+          Iri.with_path p.iri (Iri.Absolute path)
   in
   { p with iri ; rel ; kind = Some kind ; mime }
 

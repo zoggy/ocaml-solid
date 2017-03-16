@@ -170,7 +170,12 @@ class r (user:Iri.t option) path =
       let (exists, rd) =
         match Server_fs.kind path with
         | None ->
-            let rd = error_rd rd "Not found" "Not found" in
+            let rd =
+              match rd.Wm.Rd.meth with
+                `GET | `HEAD | `OPTIONS ->
+                  error_rd rd "Not found" "Ressources does not exist"
+              | _ -> rd
+            in
             (false, rd)
         | Some `Dir ->
             (* if request uri does not end with / for a directory (container),
@@ -333,15 +338,34 @@ class r (user:Iri.t option) path =
                 Wm.continue [mime, self#to_raw] rd
           end
       | None ->
-          Wm.continue ["*", self#to_raw] rd
+          Wm.continue ["*/*", self#to_raw] rd
 
     method content_types_accepted rd =
-      (*match link_type_of_rd rd with
-        Some iri when Ldp_http.type_is_container iri ->
-          Wm.continue [Ldp_http.mime_turtle ; Ldp_http.mime_xmlrdf] rd
-      | _ -> Wm.continue ["*/*"] rd
-      *)
-      Wm.continue [] rd
+      match rd.Wm.Rd.meth, Server_fs.kind path with
+      | `PUT, Some `Dir -> Wm.continue [] rd
+      | `PUT, _ ->
+          let%lwt () = Server_log._debug_lwt
+            (fun m -> m "Accept */* for put")
+          in
+          Wm.continue ["*/*", self#accept_put] rd
+      | `POST, Some `Dir ->
+          begin
+            match link_type_of_rd rd with
+              Some iri when Ldp_http.type_is_container iri ->
+                Wm.continue [
+                  Ldp_http.mime_turtle, self#dummy_accept ;
+                  Ldp_http.mime_xmlrdf, self#dummy_accept ;
+                ] rd
+            | _ -> Wm.continue ["*/*", self#dummy_accept] rd
+          end
+      | _ -> Wm.continue [] rd
+
+
+      | _ -> Wm.continue [] rd
+
+    method private dummy_accept rd = Wm.continue true rd
+    method private accept_put rd =
+      Wm.continue true rd
 
     method private to_container_ttl rd =
       let%lwt g = Server_fs.create_container_graph path in
