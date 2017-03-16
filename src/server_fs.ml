@@ -381,6 +381,29 @@ let post_file path write =
       in
       Lwt.return_true
 
+let sha256 str =
+  let hash = Cryptokit.Hash.sha256 () in
+  hash#add_string str ;
+  let t = Cryptokit.Hexa.encode () in
+  t#put_string hash#result ;
+  t#get_string
 
+let path_etag p =
+  let file = path_to_filename p in
+  try
+    let%lwt st = Lwt_unix.stat file in
+    let mtime = string_of_float st.Unix.st_mtime in
+    Lwt.return_some (sha256 mtime)
+  with _ -> Lwt.return_none
 
-  
+let date_rfc1123_fmt = "%a, %d %b %Y %T GMT"
+let path_last_modified p =
+  let file = path_to_filename p in
+  try
+    let%lwt st = Lwt_unix.stat file in
+    let mtime = st.Unix.st_mtime in
+    let t = CalendarLib.Fcalendar.from_unixfloat mtime in
+    let t = CalendarLib.Fcalendar.to_gmt t in
+    let str = CalendarLib.Printer.Fcalendar.sprint date_rfc1123_fmt t in
+    Lwt.return_some str
+  with _ -> Lwt.return_none

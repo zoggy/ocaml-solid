@@ -150,24 +150,39 @@ let graph_of_request rd path =
 
 class r (user:Iri.t option) path =
   object(self)
-    val mutable request_graph = None
-
     inherit [Cohttp_lwt_body.t] Wm.resource
 
+    method generate_etag rd =
+      let%lwt opt = Server_fs.path_etag path in
+      Wm.continue opt rd
+
+    method last_modified rd =
+      let%lwt opt = Server_fs.path_last_modified path in
+      let%lwt () = Server_log._debug_lwt (fun m ->
+           m "Last modified for %s: %s"
+             (Iri.to_string (Server_fs.iri path))
+             (match opt with None -> "" | Some s -> s)
+        )
+      in
+      Wm.continue opt rd
+
     method resource_exists rd =
-      match Server_fs.kind path with
-      | None ->
-          let rd = error_rd rd "Not found" "Not found" in
-          Wm.continue false rd
-      | Some `Dir ->
-          (* if request uri does not end with / for a directory (container),
-             then send a moved_temporarily:
-             - declare that no such resource exists
-             - previously_existed returns true for a `Dir
-             - moved_temporarily returns new uri
-          *)
-          Wm.continue (request_uri_path_ends_with_slash rd) rd
-      | Some _ -> Wm.continue true rd
+      let (exists, rd) =
+        match Server_fs.kind path with
+        | None ->
+            let rd = error_rd rd "Not found" "Not found" in
+            (false, rd)
+        | Some `Dir ->
+            (* if request uri does not end with / for a directory (container),
+               then send a moved_temporarily:
+               - declare that no such resource exists
+               - previously_existed returns true for a `Dir
+               - moved_temporarily returns new uri
+               *)
+            (request_uri_path_ends_with_slash rd, rd)
+        | Some _ -> (true, rd)
+      in
+      Wm.continue exists rd
 
     method previously_existed rd =
       match Server_fs.kind path with
