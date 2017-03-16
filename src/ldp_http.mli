@@ -19,7 +19,11 @@ val mime_turtle : string
 val mime_xmlrdf : string
 
 val type_is_container : Iri.t -> bool
-val is_container : Rdf_graph.graph -> bool
+
+(** [is_container ~iri g] returns whether [iri] is a container,
+  according to graph [g]. If [iri] is not provided, the name
+  if the graph is used intead. *)
+val is_container : ?iri: Iri.t -> Rdf_graph.graph -> bool
 
 module type Requests =
   sig

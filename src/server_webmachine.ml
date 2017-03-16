@@ -53,7 +53,7 @@ let request_uri_path_ends_with_slash rd =
 
 (* FIXME: check if meta of resource R has an acl resource
    or shares the one of R *)
-let rd_add_acl_meta path rd =
+let rd_add_acl_meta rd path =
   match Server_fs.kind path with
   | Some (`Dir | `File | `Acl) ->
       let acl = Server_fs.acl_path path in
@@ -109,8 +109,49 @@ let fix_slug_field =
           (fun h -> Cohttp.Header.replace h "slug" field)
           rd
 
+let rd_set_location rd path =
+  Wm.Rd.with_resp_headers
+    (fun h -> Cohttp.Header.replace h "location"
+       (Iri.to_uri (Server_fs.iri path))
+    )
+    rd
+
+let graph_of_request rd path =
+  match content_type_of_rd rd with
+    str when str = Ldp_http.mime_turtle ->
+      begin
+        let%lwt str = Cohttp_lwt_body.to_string rd.Wm.Rd.req_body in
+        try
+          let g = Rdf_graph.open_graph (Server_fs.iri path) in
+          Rdf_ttl.from_string g str ;
+          Lwt.return_some g
+        with
+          e ->
+            let%lwt () = Server_log._err_lwt
+              (fun f -> f "Invalid turtle: %s" (Printexc.to_string e))
+            in
+            Lwt.return_none
+      end
+  | str when str = Ldp_http.mime_xmlrdf ->
+      begin
+        let%lwt str = Cohttp_lwt_body.to_string rd.Wm.Rd.req_body in
+        try
+          let g = Rdf_graph.open_graph (Server_fs.iri path) in
+          Rdf_xml.from_string g str ;
+          Lwt.return_some g
+        with
+          e ->
+            let%lwt () = Server_log._err_lwt
+              (fun f -> f "Invalid xml/rdf: %s" (Printexc.to_string e))
+            in
+            Lwt.return_none
+      end
+  | _ -> Lwt.return_none
+
 class r (user:Iri.t option) path =
   object(self)
+    val mutable request_graph = None
+
     inherit [Cohttp_lwt_body.t] Wm.resource
 
     method resource_exists rd =
@@ -130,7 +171,8 @@ class r (user:Iri.t option) path =
 
     method previously_existed rd =
       match Server_fs.kind path with
-        Some `Dir -> Wm.continue true rd
+      | Some `Dir when rd.Wm.Rd.meth = `POST -> Wm.continue false rd
+      | Some `Dir -> Wm.continue true rd
       | _ -> Wm.continue false rd
 
     (* method options rd : ((string * string) list, 'body) op *)
@@ -146,8 +188,8 @@ class r (user:Iri.t option) path =
     method malformed_request rd =
       (* if request contains a slug field, make sure it contains
          only valid characters so wa can use it blindly later *)
-       let rd = fix_slug_field rd in
-       Wm.continue false rd
+      let rd = fix_slug_field rd in
+      Wm.continue false rd
 
     method forbidden rd =
       let%lwt rights = Server_perm.rights_for_path user path in
@@ -177,11 +219,62 @@ class r (user:Iri.t option) path =
       match%lwt Server_fs.path_is_container path with
       | false -> Wm.continue false rd
       | true ->
-          let slug = Cohttp.Header.get rd.Wm.Rd.req_headers in
-          match link_type_of_rd rd with
-            Some iri when Ldp_http.type_is_container iri ->
-              assert false
-          | _ -> assert false
+          let slug = Cohttp.Header.get rd.Wm.Rd.req_headers "slug" in
+          let create_container =
+            match link_type_of_rd rd with
+              Some iri -> Ldp_http.type_is_container iri
+            | _ -> false
+          in
+          let avail =
+            if create_container then
+              Server_fs.available_dir
+            else
+              Server_fs.available_file
+          in
+          match%lwt avail ?slug path with
+          | None -> Wm.continue false rd
+          | Some newpath ->
+              let%lwt created =
+                if create_container then
+                  match%lwt graph_of_request rd newpath with
+                    None -> Lwt.return (Error (`Bad_request, rd))
+                  | Some g ->
+                      let%lwt b = Server_fs.post_mkdir newpath g in
+                      Lwt.return (Ok b)
+                else
+                  let%lwt b =
+                    Server_fs.post_file newpath
+                      (fun oc ->
+                         Cohttp_lwt_body.write_body
+                           (Lwt_io.write oc) rd.Wm.Rd.req_body)
+                  in
+                  Lwt.return (Ok b)
+              in
+              match created with
+              | Error (status, rd) ->
+                  Wm.respond (Cohttp.Code.code_of_status status) rd
+              | Ok false -> Wm.continue false rd
+              | Ok true ->
+                  let rd = rd_set_location rd newpath in
+                  let%lwt () =
+                    match Server_fs.kind newpath with
+                        Some `File ->
+                        begin
+                          let mime = content_type_of_rd rd in
+                          (* add meta info *)
+                          let meta_path = Server_fs.meta_path newpath in
+                          let g = Rdf_graph.open_graph (Server_fs.iri meta_path) in
+                          g.Rdf_graph.add_triple
+                            ~sub:(Rdf_term.Iri (Server_fs.iri newpath))
+                            ~pred:Rdf_dc.format
+                            ~obj:(Rdf_term.term_of_literal_string mime);
+                          Server_fs.store_path_graph meta_path g >>=
+                            fun _ -> Lwt.return_unit
+                        end
+                    | _ -> Lwt.return_unit
+                  in
+                  let rd = rd_add_acl_meta rd newpath in
+                  Wm.continue true rd
 
     method moved_temporarily rd =
       let%lwt () = log (fun m -> m "moved temporarily ?") in
@@ -228,20 +321,25 @@ class r (user:Iri.t option) path =
           Wm.continue ["*", self#to_raw] rd
 
     method content_types_accepted rd =
+      (*match link_type_of_rd rd with
+        Some iri when Ldp_http.type_is_container iri ->
+          Wm.continue [Ldp_http.mime_turtle ; Ldp_http.mime_xmlrdf] rd
+      | _ -> Wm.continue ["*/*"] rd
+      *)
       Wm.continue [] rd
 
     method private to_container_ttl rd =
       let%lwt g = Server_fs.create_container_graph path in
       let body = `String (Rdf_ttl.to_string g) in
       let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta path rd in
+      let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
     method private to_container_xmlrdf rd =
       let%lwt g = Server_fs.create_container_graph path in
       let body = `String (Rdf_xml.to_string g) in
       let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta path rd in
+      let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
     method private to_meta_ttl rd =
@@ -253,7 +351,7 @@ class r (user:Iri.t option) path =
       in
       let body = `String str in
       let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta path rd in
+      let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
     method private to_meta_xmlrdf rd =
@@ -264,7 +362,7 @@ class r (user:Iri.t option) path =
       in
       let body = `String body in
       let rd =  { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta path rd in
+      let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
     method private to_acl_ttl rd =
@@ -276,7 +374,7 @@ class r (user:Iri.t option) path =
       in
       let body = `String str in
       let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta path rd in
+      let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
     method private to_acl_xmlrdf rd =
@@ -287,7 +385,7 @@ class r (user:Iri.t option) path =
       in
       let body = `String body in
       let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta path rd in
+      let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
     method private to_raw rd =
@@ -300,7 +398,7 @@ class r (user:Iri.t option) path =
       in
       let body = `String str in
       let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta path rd in
+      let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
     method finish_request rd =

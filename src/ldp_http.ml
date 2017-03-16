@@ -56,8 +56,13 @@ let container_types =
 let type_is_container =
   fun iri -> Iri.Set.mem iri container_types
 
-let is_container g =
-  let sub = Rdf_term.Iri (g.Rdf_graph.name ()) in
+let is_container ?iri g =
+  let iri =
+    match iri with
+      None -> g.Rdf_graph.name ()
+    | Some iri -> iri
+  in
+  let sub = Rdf_term.Iri iri in
   let e i =
     g.Rdf_graph.exists ~sub ~pred: Rdf_rdf.type_ ~obj:(Rdf_term.Iri i) ()
   in

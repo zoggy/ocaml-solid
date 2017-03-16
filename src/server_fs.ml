@@ -129,7 +129,7 @@ let ext_path suffix kind p =
 let acl_path = ext_path acl_suffix `Acl
 let meta_path = ext_path meta_suffix `Meta
 
-(* CHOICE: acl are stored in turtle format *)
+(* CHOICE: acl and meta are stored in turtle format *)
 let read_graph base filename =
   if not (Sys.file_exists filename) then
     Lwt.return_none
@@ -140,7 +140,7 @@ let read_graph base filename =
            filename (Printexc.to_string e))
       in Lwt.return_none
     in
-    match%lwt string_of_file filename with
+    match%lwt string_of_file ~on_err filename with
       None -> Lwt.return_none
     | Some str ->
         let g = Rdf_graph.open_graph base in
@@ -269,7 +269,8 @@ let path_is_container path =
         let meta = meta_path path in
         match%lwt read_path_graph meta with
           None -> Lwt.return_false
-        | Some g -> Lwt.return (Ldp_http.is_container g)
+        | Some g ->
+            Lwt.return (Ldp_http.is_container ~iri: path.iri g)
       end
   | _ -> Lwt.return_false
 
@@ -291,36 +292,95 @@ let iri_append_path iri strings =
   in
   Iri.with_path iri p
 
-let on_available_dir_entry =
-  let rec iter f dir slug cpt =
+let available_dir_entry k =
+  let rec iter dir slug cpt =
     let basename =
       if cpt = 0 then slug else Printf.sprintf "%s-%d" slug cpt
     in
     let file = Filename.concat dir basename in
     if%lwt Lwt_unix.file_exists file then
-      iter f dir slug (cpt+1)
+      iter dir slug (cpt+1)
     else
-      if%lwt f file then Lwt.return_some basename else Lwt.return_none
+      Lwt.return basename
   in
-  fun f ?(slug="") path ->
+  (* FIXME: concurrent calls with the same
+     slug and directory could lead to return a filename
+     already found but not yet created. *)
+  fun ?(slug="") path ->
     match path.kind with
     | Some `Dir ->
         begin
           let dir = path_to_filename path in
-          (* [iter f ...] returns basename if file/dir was created *)
-          match%lwt iter f dir slug (if slug = "" then 1 else 0)  with
-          | None -> Lwt.return_none
-          | Some basename ->
-              let rel = path.rel @ [ basename ] in
-              let%lwt kind = get_kind path.root rel in
-              let iri =
-                let l = match kind with
-                  | Some `Dir -> [basename ; ""]
-                  | _ -> [basename]
-                in
-                iri_append_path path.iri l
-              in
-              Lwt.return_some
-                { root = path.root; rel ; iri ; kind ; mime = None }
+          let%lwt basename = iter dir slug (if slug = "" then 1 else 0) in
+          let rel = path.rel @ [ basename ] in
+          let iri =
+            let l = match k with
+              | `Dir -> [basename ; ""]
+              | _ -> [basename]
+            in
+            iri_append_path path.iri l
+          in
+          Lwt.return_some
+            { root = path.root; rel ; iri ; kind = Some k ; mime = None }
         end
     | _ -> Lwt.return_none
+
+let available_file = available_dir_entry `File
+let available_dir = available_dir_entry `Dir
+
+let bool_of_unix_call f arg =
+  try%lwt let%lwt () = f arg in Lwt.return_true
+  with Unix.Unix_error (e,s1,s2) ->
+      let%lwt () = Server_log._err_lwt (fun m -> m "%s: %s %s"
+         s1 (Unix.error_message e) s2)
+      in
+      Lwt.return_false
+
+let safe_unlink abs_file =
+  let%lwt _b = bool_of_unix_call Lwt_unix.unlink abs_file in
+  Lwt.return_unit
+
+let store_graph abs_file g =
+  let str = Rdf_ttl.to_string g in
+  bool_of_unix_call
+    Lwt_io.(with_file ~mode: Output abs_file)
+    (fun oc -> Lwt_io.write oc str)
+
+let store_path_graph path g =
+  let file = path_to_filename path in
+  store_graph file g
+
+let post_mkdir path meta_graph =
+  let abs_dir = path_to_filename path in
+  match%lwt bool_of_unix_call (Lwt_unix.mkdir abs_dir) 0o770 with
+  | false -> Lwt.return_false
+  | true ->
+      let abs_meta = Filename.concat abs_dir meta_suffix in
+      match%lwt store_graph abs_meta meta_graph with
+        false ->
+          let%lwt () = safe_unlink abs_meta in
+          let%lwt () = safe_unlink abs_dir in
+          Lwt.return_false
+      | true ->
+          let%lwt () = Server_log._info_lwt
+            (fun f -> f "Container directory created: %s" abs_dir)
+          in
+          Lwt.return_true
+
+let post_file path write =
+  let abs_file = path_to_filename path in
+  match%lwt bool_of_unix_call
+    Lwt_io.(with_file ~mode:Output abs_file) write
+  with
+    false ->
+      let%lwt () = safe_unlink abs_file in
+      Lwt.return_false
+  | true ->
+      let%lwt () = Server_log._info_lwt
+        (fun f -> f "File created: %s" abs_file)
+      in
+      Lwt.return_true
+
+
+
+  
