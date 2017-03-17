@@ -6,4 +6,3 @@
     acl:agent <{webid}> ;
     acl:defaultForNew <.> ;
     acl:mode acl:Control, acl:Read, acl:Write .
-

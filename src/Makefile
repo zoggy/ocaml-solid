@@ -260,3 +260,14 @@ noheaders:
 	$(OCAMLFIND) ocamldep -package lwt.ppx *.ml *.mli  > .depend
 
 include .depend
+
+USER_TEMPLATES= \
+	user_templates/Applications/,acl \
+	user_templates/Inbox/,acl \
+	user_templates/Private/,acl \
+	user_templates/Public/,acl \
+	user_templates/Shared/,acl \
+	user_templates/Work/,acl
+
+server_user.cmx: $(USER_TEMPLATES)
+server_user.cmo: $(USER_TEMPLATES)
