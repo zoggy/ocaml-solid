@@ -1,0 +1,35 @@
+@prefix s: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix foaf: <http://xmlns.com/foaf/0.1/>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
+@prefix ws: <http://www.w3.org/ns/pim/space#>.
+@prefix cert: <http://www.w3.org/ns/auth/cert#>.
+@prefix terms: <http://www.w3.org/ns/solid/terms#>.
+@prefix pro: <./>.
+@prefix storage: <../>.
+@prefix Inbox: <../Inbox>.
+@prefix tim: <../Public/timeline/>.
+
+pro:card
+   a foaf:PersonalProfileDocument; foaf:maker <#me>; foaf:primaryTopic <#me>.
+<#key>
+    a    cert:RSAPublicKey;
+    s:label
+       "{cert-label}";
+    cert:exponent
+       "{cert-exponent}"^^xsd:int;
+    cert:modulus
+       "{cert-modulus}"^^xsd:hexBinary.
+<#me>
+    a    foaf:Person;
+    cert:key
+       <#key>;
+    ws:preferencesFile
+       <../Preferences/prefs.ttl>;
+    ws:storage
+       storage:;
+    terms:inbox
+       Inbox:;
+    terms:timeline
+       tim:;
+    foaf:name
+       "{name}".

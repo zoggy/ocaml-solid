@@ -16,6 +16,90 @@ let iri_sharp str = Iri.of_string ("#"^str)
 
 let re_var var = Re.(compile (str ("{"^var^"}")))
 
+let vars_of_pem pem =
+  let%lwt () = Server_log._debug_lwt
+    (fun m -> m "Extracing pubkey from %s" pem)
+  in
+  let pubkey = Filename.temp_file "oss" "pubkey" in
+  let command = Printf.sprintf
+    "openssl x509 -pubkey -noout -in %s > %s"
+    (Filename.quote pem) (Filename.quote pubkey)
+  in
+  match Sys.command command with
+    n when n <> 0 -> Lwt.fail_with ("Command failed: "^command)
+  | _ ->
+      let%lwt () = Server_log._debug_lwt
+        (fun m -> m "Extracing modulus from %s" pubkey)
+      in
+      let command = ("",
+         [| "openssl" ; "rsa" ; "-in" ; pubkey ; "-pubin" ;
+          "-inform" ; "PEM" ; "-modulus" ; "-noout" |])
+      in
+      let%lwt str = Lwt_process.pread command in
+      let re = Re.(compile (seq
+          [
+            str "Modulus=" ;
+            group (rep1 (alt [alpha;digit])) ;
+            eol ;
+          ]))
+      in
+      let groups = Re.exec re str in
+      let modulus = Re.Group.get groups 1 in
+
+      let%lwt () = Server_log._debug_lwt
+        (fun m -> m "Extracing exponent from %s" pubkey)
+      in
+      let command = ("",
+         [| "openssl" ; "rsa" ; "-in" ; pubkey ; "-pubin" ;
+          "-inform" ; "PEM" ; "-text" ; "-noout" |])
+      in
+      let%lwt str = Lwt_process.pread command in
+      let re = Re.(compile (seq
+          [
+            str "Exponent: " ;
+            group (rep1 digit) ;
+            char ' ' ;
+          ]))
+      in
+      let groups = Re.exec re str in
+      let exponent = Re.Group.get groups 1 in
+      let%lwt () = Server_fs.safe_unlink pubkey in
+
+      let%lwt () = Server_log._debug_lwt
+        (fun m -> m "Extracing Subject Alternative Name from %s" pem)
+      in
+      let command =
+        ("", [| "openssl" ; "x509" ; "-noout" ; "-in" ; pem ; "-text" |])
+      in
+      let%lwt str = Lwt_process.pread command in
+      let re = Re.(compile (seq
+          [
+            str "X509v3 Subject Alternative Name:";
+            rep (set " \t\n\r");
+            str "URI:" ;
+            group (rep1 notnl) ;
+          ]))
+      in
+      let webid =
+        try
+          let groups = Re.exec re str in
+          Some (Re.Group.get groups 1)
+        with
+          _ -> None
+      in
+      let%lwt () = Server_log._debug_lwt
+        (fun m -> m "modulus=%s\nexponent=%s\nwebid=%s"
+           modulus exponent
+             (match webid with None -> "NONE" | Some s -> s))
+      in
+      Lwt.return
+        (webid,
+         [
+           re_var "cert-modulus", modulus ;
+           re_var "cert-exponent", exponent ;
+         ]
+        )
+
 let templates iri =
   [
     iri^"Applications/,acl", Some Ldp_http.mime_turtle,
@@ -41,6 +125,15 @@ let templates iri =
 
     iri^"Work/,acl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Work/,acl"] ;
+  ]
+
+let profile_templates iri =
+  [
+    iri^"profile/card", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/profile/card"] ;
+
+    iri^"profile/card,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/profile/card,acl"] ;
   ]
 
 let mk_root_acl root_path webid =
@@ -69,28 +162,35 @@ let mk_root_acl root_path webid =
     Server_log._err_lwt
       (fun f -> f "Could not create %s" (Server_fs.path_to_filename acl_path))
 
-let mk_templates root_path webid =
+let mk_templates root_path ?(name="Your name")
+  ?(cert_label="Cert label") ~vars ~profile webid =
   let templates = templates root_path in
-  let vars = [
+  let templates =
+    if profile then templates @ profile_templates root_path else templates
+  in
+  let vars = vars @
+    [
       re_var "webid", Iri.to_string webid ;
+      re_var "name", name ;
+      re_var "cert-label", cert_label ;
     ]
   in
   let replace_var str (re, by) = Re.replace_string re ~all:true ~by str in
   let mk (uri, mime, template) =
     let content = List.fold_left replace_var template vars in
     let%lwt path = Server_fs.path_of_uri (Uri.of_string uri) in
-    let () =
+    let%lwt () =
       match mime with
       Some s when s = Ldp_http.mime_turtle ->
           begin
             (* test graph syntax *)
             let iri = Server_fs.iri path in
             let g = open_graph iri in
-            try Rdf_ttl.from_string g content
-            with e -> Server_log._err
+            try Lwt.return (Rdf_ttl.from_string g content)
+            with e -> Server_log._err_lwt
                 (fun f -> f "%s: %s" (Iri.to_string iri) (Printexc.to_string e))
           end
-      | _ -> ()
+      | _ -> Lwt.return_unit
     in
     match%lwt Server_fs.put_file path ?mime
       (fun oc -> Lwt_io.write oc content)
@@ -101,11 +201,16 @@ let mk_templates root_path webid =
   in
   Lwt_list.iter_s mk templates
 
-let add ?webid login =
+let add ?webid ?name ?cert_label ?pem ~profile login =
+  let%lwt (webid, vars) =
+    match pem with
+      None -> Lwt.return (webid, [])
+    | Some file -> vars_of_pem file
+  in
   let%lwt webid =
     match webid with
-    | Some iri -> Lwt.return iri
-    | None -> Lwt.fail_with "missing webid"
+      None -> Lwt.fail_with "missing webid"
+    | Some str -> Lwt.return (Iri.of_string str)
   in
   (* FIXME: change when virtual hosts will be handled in config file *)
   let root_uri = Printf.sprintf "https://localhost:%d/~%s/"
@@ -119,7 +224,8 @@ let add ?webid login =
     let g = open_graph Server_fs.(iri (meta_path root_path)) in
     if%lwt Server_fs.post_mkdir root_path g then
       let%lwt () = mk_root_acl root_path webid in
-      mk_templates (Iri.to_uri (Server_fs.iri root_path)) webid
+      mk_templates (Iri.to_uri (Server_fs.iri root_path))
+        ?name ?cert_label ~vars ~profile webid
     else
       Lwt.fail_with (Printf.sprintf "Directory %s not created" root_dir)
 
