@@ -438,7 +438,7 @@ let safe_unlink abs_file =
   Lwt.return_unit
 
 let store_graph abs_file g =
-  let str = Rdf_ttl.to_string g in
+  let str = Rdf_ttl.to_string ~compact: true g in
   bool_of_unix_call
     Lwt_io.(with_file ~mode: Output abs_file)
     (fun oc -> Lwt_io.write oc str)
@@ -459,8 +459,9 @@ let post_mkdir path meta_graph =
           let%lwt () = safe_unlink abs_dir in
           Lwt.return_false
       | true ->
+          path.kind <- `Dir ;
           let%lwt () = Server_log._info_lwt
-            (fun f -> f "Container directory created: %s" abs_dir)
+            (fun f -> f "Directory created: %s" abs_dir)
           in
           Lwt.return_true
 

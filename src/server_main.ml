@@ -2,6 +2,10 @@
 
 let conf_options = Server_conf.add_options Ocf.group
 
+let webid = ref None
+type mode = Server | Add_user of string
+let mode = ref Server
+
 let options =
   [ "-c", Arg.String (Ocf.from_file conf_options),
     "file load configuration from file" ;
@@ -9,6 +13,12 @@ let options =
     "--dump-options",
     Arg.Unit (fun () -> print_endline (Ocf.to_string conf_options); exit 0),
     "print current configuration" ;
+
+    "--add-user", Arg.String (fun login -> mode := Add_user login),
+    "login add user workspace in home root" ;
+
+    "--webid", Arg.String (fun s -> webid := Some (Iri.of_string s)),
+    "iri use iri as webid for new user" ;
   ]
 
 let usage = Printf.sprintf "Usage: %s [options]\nwhere options are:" Sys.argv.(0)
@@ -17,14 +27,18 @@ let main () =
   | exception Arg.Bad msg -> Lwt.fail_with msg
   | exception Ocf.Error e -> Lwt.fail_with (Ocf.string_of_error e)
   | () ->
-      let%lwt () = Server_log._app_lwt
-        (fun m -> m "Using documents from %s" (Ocf.get Server_conf.storage_root))
-      in
-      let%lwt () = Server_log._app_lwt
-        (fun m -> m "Starting HTTPS server on port %d"
-           (Ocf.get Server_conf.port))
-      in
-      Server_http_tls.server Server_webmachine.http_handler
+      match !mode with
+      | Add_user login ->
+          Server_user.add ?webid:!webid login
+      | Server ->
+          let%lwt () = Server_log._app_lwt
+            (fun m -> m "Using documents from %s" (Ocf.get Server_conf.storage_root))
+          in
+          let%lwt () = Server_log._app_lwt
+            (fun m -> m "Starting HTTPS server on port %d"
+               (Ocf.get Server_conf.port))
+          in
+          Server_http_tls.server Server_webmachine.http_handler
 
 let () =
   Logs.set_reporter (Server_log.lwt_reporter ());

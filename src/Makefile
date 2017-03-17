@@ -124,6 +124,7 @@ SERVER_CMXFILES=\
 	server_fs.cmx \
 	server_acl.cmx \
 	server_webmachine.cmx \
+	server_user.cmx \
 	server_main.cmx
 SERVER_CMIFILES=$(SERVER_CMXFILES:.cmx=.cmi)
 SERVER_CMOFILES=$(SERVER_CMXFILES:.cmx=.cmo)

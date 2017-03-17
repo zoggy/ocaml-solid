@@ -350,7 +350,7 @@ class r (user:Iri.t option) path =
 
     method private dummy_accept rd = Wm.continue true rd
     method private accept_put rd =
-      let%lwt existed = 
+      let%lwt existed =
         Lwt_unix.file_exists (Server_fs.path_to_filename path)
       in
       let mime = content_type_of_rd rd in
@@ -360,21 +360,21 @@ class r (user:Iri.t option) path =
       Wm.continue ok rd
 
     method private put_graph rd =
-      let%lwt existed = 
+      let%lwt existed =
         Lwt_unix.file_exists (Server_fs.path_to_filename path)
       in
       match%lwt graph_of_request rd path with
       | None -> Wm.respond (Cohttp.Code.code_of_status `Bad_request) rd
       | Some g ->
           let%lwt ok = Server_fs.put_file path
-            (fun oc -> Lwt_io.write oc (Rdf_ttl.to_string g))
+            (fun oc -> Lwt_io.write oc (Rdf_ttl.to_string ~compact: true g))
           in
           let rd = if existed then rd else rd_set_location rd path in
           Wm.continue ok rd
 
     method private to_container_ttl rd =
       let%lwt g = Server_fs.create_container_graph path in
-      let body = `String (Rdf_ttl.to_string g) in
+      let body = `String (Rdf_ttl.to_string ~compact: true g) in
       let rd = { rd with Wm.Rd.resp_body = body } in
       let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
