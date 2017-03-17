@@ -17,27 +17,30 @@ let iri_sharp str = Iri.of_string ("#"^str)
 let re_var var = Re.(compile (str ("{"^var^"}")))
 
 let templates iri =
-  [ iri^"Preferences/prefs.ttl", Some Ldp_http.mime_turtle,
+  [
+    iri^"Applications/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Applications/,acl"] ;
+
+    iri^"Inbox/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Inbox/,acl"] ;
+
+    iri^"Preferences/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Preferences/,acl"] ;
+
+    iri^"Preferences/prefs.ttl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Preferences/prefs.ttl"] ;
 
     iri^"Private/,acl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Private/,acl"] ;
 
-    iri^"Applications/,acl", Some Ldp_http.mime_turtle,
-    [%blob "user_templates/Applications/,acl"] ;
-
     iri^"Public/,acl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Public/,acl"] ;
-
-    iri^"Inbox/,acl", Some Ldp_http.mime_turtle,
-    [%blob "user_templates/Inbox/,acl"] ;
 
     iri^"Shared/,acl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Shared/,acl"] ;
 
     iri^"Work/,acl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Work/,acl"] ;
-
   ]
 
 let mk_root_acl root_path webid =
@@ -96,7 +99,7 @@ let mk_templates root_path webid =
         (fun f -> f "Could not create %s" (Server_fs.path_to_filename path))
     | true -> Lwt.return_unit
   in
-  Lwt_list.iter_p mk templates
+  Lwt_list.iter_s mk templates
 
 let add ?webid login =
   let%lwt webid =
