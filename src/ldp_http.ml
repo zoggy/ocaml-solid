@@ -92,8 +92,8 @@ let response_metadata iri ((resp, body): Response.t * Cohttp_lwt_body.t) =
   in
   let acl = get_link links "acl" in
   let meta =
-    match get_link links "meta" with
-      None -> get_link links "describedBy"
+    match get_link links "describedby" with
+      None -> get_link links "meta"
     | x -> x
   in
   let user = Header.get header "User" in

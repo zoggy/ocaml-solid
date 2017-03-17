@@ -55,7 +55,7 @@ let request_uri_path_ends_with_slash rd =
    or shares the one of R *)
 let rd_add_acl_meta rd path =
   match Server_fs.kind path with
-  | Some (`Dir | `File | `Acl) ->
+  | `Dir | `File | `Acl _ ->
       let acl = Server_fs.acl_path path in
       let meta = Server_fs.meta_path path in
       let acl_iri = Iri.to_string (Server_fs.iri acl) in
@@ -64,12 +64,12 @@ let rd_add_acl_meta rd path =
          let h = Cohttp.Header.add_multi h
            "link" [
              Printf.sprintf "<%s>; rel=\"acl\"" acl_iri ;
-             Printf.sprintf "<%s>; rel=\"meta\"" meta_iri ;
+             Printf.sprintf "<%s>; rel=\"describedby\"" meta_iri ;
            ]
          in
          h)
         rd
-  | Some `Meta | None -> rd
+  | `Meta _ | `Unknown -> rd
 
 let content_type_of_rd rd =
   let h = rd.Wm.Rd.req_headers in
@@ -149,6 +149,10 @@ let graph_of_request rd path =
   | _ -> Lwt.return_none
 
 class r (user:Iri.t option) path =
+  let write_body rd oc =
+    Cohttp_lwt_body.write_body
+      (Lwt_io.write oc) rd.Wm.Rd.req_body
+  in
   object(self)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
@@ -169,7 +173,7 @@ class r (user:Iri.t option) path =
     method resource_exists rd =
       let (exists, rd) =
         match Server_fs.kind path with
-        | None ->
+        | `Acl `Unknown | `Meta `Unknown | `Unknown ->
             let rd =
               match rd.Wm.Rd.meth with
                 `GET | `HEAD | `OPTIONS ->
@@ -177,7 +181,7 @@ class r (user:Iri.t option) path =
               | _ -> rd
             in
             (false, rd)
-        | Some `Dir ->
+        | `Dir ->
             (* if request uri does not end with / for a directory (container),
                then send a moved_temporarily:
                - declare that no such resource exists
@@ -185,14 +189,14 @@ class r (user:Iri.t option) path =
                - moved_temporarily returns new uri
                *)
             (request_uri_path_ends_with_slash rd, rd)
-        | Some _ -> (true, rd)
+        | _ -> (true, rd)
       in
       Wm.continue exists rd
 
     method previously_existed rd =
       match Server_fs.kind path with
-      | Some `Dir when rd.Wm.Rd.meth = `POST -> Wm.continue false rd
-      | Some `Dir -> Wm.continue true rd
+      | `Dir when rd.Wm.Rd.meth = `POST -> Wm.continue false rd
+      | `Dir -> Wm.continue true rd
       | _ -> Wm.continue false rd
 
     (* method options rd : ((string * string) list, 'body) op *)
@@ -262,11 +266,9 @@ class r (user:Iri.t option) path =
                       let%lwt b = Server_fs.post_mkdir newpath g in
                       Lwt.return (Ok b)
                 else
+                  let mime = content_type_of_rd rd in
                   let%lwt b =
-                    Server_fs.post_file newpath
-                      (fun oc ->
-                         Cohttp_lwt_body.write_body
-                           (Lwt_io.write oc) rd.Wm.Rd.req_body)
+                    Server_fs.post_file newpath ~mime (write_body rd)
                   in
                   Lwt.return (Ok b)
               in
@@ -276,30 +278,13 @@ class r (user:Iri.t option) path =
               | Ok false -> Wm.continue false rd
               | Ok true ->
                   let rd = rd_set_location rd newpath in
-                  let%lwt () =
-                    match Server_fs.kind newpath with
-                        Some `File ->
-                        begin
-                          let mime = content_type_of_rd rd in
-                          (* add meta info *)
-                          let meta_path = Server_fs.meta_path newpath in
-                          let g = Rdf_graph.open_graph (Server_fs.iri meta_path) in
-                          g.Rdf_graph.add_triple
-                            ~sub:(Rdf_term.Iri (Server_fs.iri newpath))
-                            ~pred:Rdf_dc.format
-                            ~obj:(Rdf_term.term_of_literal_string mime);
-                          Server_fs.store_path_graph meta_path g >>=
-                            fun _ -> Lwt.return_unit
-                        end
-                    | _ -> Lwt.return_unit
-                  in
                   let rd = rd_add_acl_meta rd newpath in
                   Wm.continue true rd
 
     method moved_temporarily rd =
       let%lwt () = log (fun m -> m "moved temporarily ?") in
       match Server_fs.kind path with
-      | Some `Dir ->
+      | `Dir ->
           begin
             if request_uri_path_ends_with_slash rd then
               Wm.continue None rd
@@ -312,23 +297,23 @@ class r (user:Iri.t option) path =
     method content_types_provided rd =
       let%lwt () = log (fun f -> f "content_types_provided") in
       match Server_fs.kind path with
-        Some `Dir ->
+        `Dir ->
           Wm.continue [
             Ldp_http.mime_turtle, self#to_container_ttl ;
             Ldp_http.mime_xmlrdf, self#to_container_xmlrdf ;
           ] rd
           (* FIXME: provide also simple HTML page *)
-      | Some `Acl ->
+      | `Acl _ ->
           Wm.continue [
             Ldp_http.mime_turtle, self#to_acl_ttl ;
             Ldp_http.mime_xmlrdf, self#to_acl_xmlrdf ;
           ] rd
-      | Some `Meta ->
+      | `Meta _ ->
           Wm.continue [
             Ldp_http.mime_turtle, self#to_meta_ttl ;
             Ldp_http.mime_xmlrdf, self#to_meta_xmlrdf ;
           ] rd
-      | Some `File ->
+      | `File ->
           begin
             match%lwt Server_fs.path_mime path with
               None -> Wm.continue ["*/*", self#to_raw] rd
@@ -337,18 +322,21 @@ class r (user:Iri.t option) path =
                    like rdf conversions *)
                 Wm.continue [mime, self#to_raw] rd
           end
-      | None ->
+      | `Unknown ->
           Wm.continue ["*/*", self#to_raw] rd
 
     method content_types_accepted rd =
       match rd.Wm.Rd.meth, Server_fs.kind path with
-      | `PUT, Some `Dir -> Wm.continue [] rd
+      | `PUT, `Dir -> Wm.continue [] rd
       | `PUT, _ ->
-          let%lwt () = Server_log._debug_lwt
-            (fun m -> m "Accept */* for put")
-          in
-          Wm.continue ["*/*", self#accept_put] rd
-      | `POST, Some `Dir ->
+          if Server_fs.is_graph_path path then
+            Wm.continue [
+              Ldp_http.mime_turtle, self#put_graph ;
+              Ldp_http.mime_xmlrdf, self#put_graph ;
+            ] rd
+          else
+            Wm.continue ["*/*", self#accept_put] rd
+      | `POST, `Dir ->
           begin
             match link_type_of_rd rd with
               Some iri when Ldp_http.type_is_container iri ->
@@ -360,12 +348,29 @@ class r (user:Iri.t option) path =
           end
       | _ -> Wm.continue [] rd
 
-
-      | _ -> Wm.continue [] rd
-
     method private dummy_accept rd = Wm.continue true rd
     method private accept_put rd =
-      Wm.continue true rd
+      let%lwt existed = 
+        Lwt_unix.file_exists (Server_fs.path_to_filename path)
+      in
+      let mime = content_type_of_rd rd in
+      let%lwt ok = Server_fs.put_file path ~mime (write_body rd) in
+      let rd = rd_add_acl_meta rd path in
+      let rd = if existed then rd else rd_set_location rd path in
+      Wm.continue ok rd
+
+    method private put_graph rd =
+      let%lwt existed = 
+        Lwt_unix.file_exists (Server_fs.path_to_filename path)
+      in
+      match%lwt graph_of_request rd path with
+      | None -> Wm.respond (Cohttp.Code.code_of_status `Bad_request) rd
+      | Some g ->
+          let%lwt ok = Server_fs.put_file path
+            (fun oc -> Lwt_io.write oc (Rdf_ttl.to_string g))
+          in
+          let rd = if existed then rd else rd_set_location rd path in
+          Wm.continue ok rd
 
     method private to_container_ttl rd =
       let%lwt g = Server_fs.create_container_graph path in

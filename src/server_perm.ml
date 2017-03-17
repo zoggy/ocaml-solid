@@ -81,7 +81,7 @@ let rights_for_path user p =
     match%lwt Server_fs.read_path_graph acl with
     | Some g -> rights ~default user g (Server_fs.iri p)
     | None ->
-        match Server_fs.parent p with
+        match%lwt Server_fs.parent p with
           None -> Server_log._err
             (fun m -> m "No root acl in %s" (Server_fs.path_to_filename p));
             Lwt.return no_right

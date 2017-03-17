@@ -1,5 +1,7 @@
 (** *)
 
+open Lwt.Infix
+
 let homes () =
   Filename.concat (Ocf.get Server_conf.storage_root) "home"
 
@@ -36,99 +38,193 @@ let normalize =
   in
   iter []
 
+type file_dir = [`File | `Dir | `Unknown]
+type kind = [file_dir | `Acl of file_dir | `Meta of file_dir]
 type path =
   {
-    iri: Iri.t ;
-    root : string ;
+    root_iri: Iri.t ;
+    root_dir : string ;
     rel : string list ; (* must not start nor end with '/' *)
-    kind : [`File | `Dir | `Acl | `Meta ] option ;
+    mutable kind : kind ;
     mutable mime : string option ;
   }
+
+type Ldp_types.error +=
+  | Not_a_container of path
+  | Invalid_dirname of string
 
 let acl_suffix = ",acl"
 let meta_suffix = ",meta"
 
-let get_kind root rel =
-  let fname = List.fold_left Filename.concat root rel in
-  try%lwt
-    let%lwt st = Lwt_unix.stat fname in
-    match st.Unix.st_kind with
-      Unix.S_REG ->
-        if Filename.check_suffix fname acl_suffix then
-          Lwt.return (Some `Acl)
-        else if  Filename.check_suffix fname meta_suffix then
-            Lwt.return (Some `Meta)
-          else
-            Lwt.return (Some `File)
-    | Unix.S_DIR -> Lwt.return (Some `Dir)
+let is_file fname =
+  let%lwt r =
+    match%lwt Lwt_unix.stat fname with
+    | exception _ -> Lwt.return_none
+    | { Unix.st_kind = Unix.S_REG } -> Lwt.return_some true
+    | { Unix.st_kind = Unix.S_DIR } -> Lwt.return_some false
     | _ -> Lwt.return_none
-  with _ -> Lwt.return_none
+  in
+  Server_log._debug_lwt
+    (fun m -> m "%s is_file: %s"
+       fname (match r with None -> "NONE" | Some true -> "true" | Some false -> "false")
+    );
+  Lwt.return r
+
+
+let get_kind fname =
+  match%lwt is_file fname with
+  | None -> Lwt.return `Unknown
+  | Some true when Filename.check_suffix fname acl_suffix ->
+      begin
+        match%lwt is_file (Filename.chop_suffix fname acl_suffix) with
+          None -> Lwt.return (`Acl `Unknown)
+        | Some true -> Lwt.return (`Acl `File)
+        | Some false -> Lwt.return (`Acl `Dir)
+      end
+  | Some true when Filename.check_suffix fname meta_suffix ->
+      begin
+        match%lwt is_file (Filename.chop_suffix fname meta_suffix) with
+          None -> Lwt.return (`Meta `Unknown)
+        | Some true -> Lwt.return (`Meta `File)
+        | Some false -> Lwt.return (`Meta `Dir)
+      end
+  | Some true -> Lwt.return `File
+  | Some false -> Lwt.return `Dir
 
 let path_of_uri uri =
   let path = Uri.path uri in
   let path = split_string path ['/'] in
   let path = List.map Uri.pct_decode path in
   let path = normalize path in
-  let (root, rel) =
+  let (root_iri_path, root_dir, rel) =
     match path with
-    | [] -> (documents (), path)
+    | [] -> ([], documents (), path)
     | h :: q ->
         let len = String.length h in
         if len > 0 && String.get h 0 = '~' then
-          (homes(), (String.sub h 1 (len - 1)) :: q)
+          ([h], Filename.concat (homes()) (String.sub h 1 (len - 1)), q)
         else
-          (documents(), path)
+          ([], documents(), path)
   in
-  let%lwt kind = get_kind root rel in
-  let iri =
-    let path =
-      match kind with Some `Dir -> path @ [""] | _ -> path
+  let%lwt kind =
+    let fname = List.fold_left Filename.concat root_dir rel in
+    get_kind fname
+  in
+  let rel =
+    let chop_ext =
+      match kind with
+        `Acl _ -> Some acl_suffix
+      | `Meta _ -> Some meta_suffix
+      | _ -> None
     in
+    match chop_ext with
+      None -> rel
+    | Some ext ->
+        match List.rev rel with
+          [] -> assert false
+        | h :: q ->
+            match Filename.chop_suffix h ext with
+            | "" -> List.rev q
+            | str -> List.rev (str :: q)
+  in
+  let root_iri =
     Iri.iri ?scheme:(Uri.scheme uri)
       ?user:(Uri.user uri)
       ?host:(Uri.host uri)
       ?port:(Uri.port uri)
-      ~path:(Iri.Absolute path) ()
+      ~path:(Iri.Absolute root_iri_path) ()
   in
-  Lwt.return { iri ; root ; rel ; kind ; mime = None }
+  Lwt.return { root_iri ; root_dir ; rel ; kind ; mime = None }
 
 let path_to_filename p =
-  let fname = List.fold_left Filename.concat "/" (p.root :: p.rel) in
+  let fname = List.fold_left Filename.concat p.root_dir p.rel in
   match p.kind with
-  | Some `Dir -> fname ^ "/"
-  | Some _ | None -> fname
+    `Unknown -> fname
+  | `Dir -> fname ^ "/"
+  | `File -> fname
+  | `Acl `Dir -> Filename.concat fname acl_suffix
+  | `Acl `File
+  | `Acl `Unknown -> fname ^ acl_suffix
+  | `Meta `Dir -> Filename.concat fname meta_suffix
+  | `Meta `File
+  | `Meta `Unknown -> fname ^ meta_suffix
 
-let iri p = p.iri
+let iri =
+  let add_file_ext iri ext =
+    let add p =
+      match List.rev p with
+        [] -> [ext]
+      | h::q -> List.rev ((h^ext) :: q)
+    in
+    let path =
+      match Iri.path iri with
+        Iri.Absolute p -> Iri.Absolute (add p)
+      | Iri.Relative p -> Iri.Relative (add p)
+    in
+    Iri.with_path iri path
+  in
+  fun p ->
+    let app = Iri.append_path in
+    let iri = app p.root_iri p.rel in
+    match p.kind with
+      `Unknown -> iri
+    | `Dir -> app iri [""]
+    | `File -> iri
+    | `Acl `Dir -> app iri [acl_suffix]
+    | `Acl `File
+    | `Acl `Unknown -> add_file_ext iri acl_suffix
+    | `Meta `Dir -> app iri [meta_suffix]
+    | `Meta `File
+    | `Meta `Unknown -> add_file_ext iri meta_suffix
+
 let kind p = p.kind
 
-let ext_path suffix kind p =
-  let (rel, mime) =
-    match p.kind with
-      Some `Dir ->  (p.rel @ [suffix], None)
-    | Some k when k = kind -> (p.rel, p.mime)
-    | _ ->
-        match List.rev p.rel with
-        | h :: q -> (List.rev ((h ^ suffix) :: q), None)
-        | [] -> ([suffix], None)
-  in
-  let iri =
-    if rel = p.rel then
-      p.iri
-    else
-      match Iri.path p.iri with
-      | Iri.Relative _ -> assert false
-      | Iri.Absolute path ->
-          let path =
-            match List.rev path with
-              [] -> [suffix]
-            | h :: q -> List.rev ((h^suffix)::q)
-          in
-          Iri.with_path p.iri (Iri.Absolute path)
-  in
-  { p with iri ; rel ; kind = Some kind ; mime }
+let () = Ldp_types.register_string_of_error
+  (fun fb -> function
+     | Not_a_container path ->
+         Printf.sprintf "Not a container: %s" (Iri.to_string (iri path))
+     | Invalid_dirname s ->
+         Printf.sprintf "Invalid directory name: %s" s
+     | e -> fb e
+  )
 
-let acl_path = ext_path acl_suffix `Acl
-let meta_path = ext_path meta_suffix `Meta
+(*
+let remove_ext p =
+  match p.kind with
+    Some `Dir -> p
+  | _ ->
+      match List.rev p.rel with
+        [] -> p
+      | h :: q ->
+          let h2 =
+            if Filename.check_suffix h acl_suffix then
+              Filename.chop_suffix h acl_suffix
+            else if Filename.check_suffix h meta_suffix then
+                Filename.chop_suffix h meta_suffix
+              else h
+          in
+          if h = h2 then
+            p
+          else
+        let rel = List.rev (h2 :: q) in
+        let path =
+          match Iri.path p with
+            Iri.Absolute p | Iri.relation p ->
+              match List.rev p with
+                [] -> assert false
+              |*)
+let ext_path (f : file_dir -> kind) p =
+  match p.kind with
+    (`Unknown | `Dir | `File) as x
+  | `Meta x | `Acl x -> { p with kind = f x }
+
+let acl_path = ext_path (fun x -> `Acl x)
+let meta_path = ext_path (fun x -> `Meta x)
+
+let is_graph_path p =
+  match p.kind with
+  | `Unknown | `Dir | `File -> false
+  | `Acl _ | `Meta _ -> true
 
 (* CHOICE: acl and meta are stored in turtle format *)
 let read_graph base filename =
@@ -152,7 +248,7 @@ let read_graph base filename =
           Lwt.return_none
 
 let read_path_graph p =
-  read_graph p.iri (path_to_filename p)
+  read_graph (iri p) (path_to_filename p)
 
 let path_mime p =
   match p.mime with
@@ -164,7 +260,7 @@ let path_mime p =
       | Some g ->
           let open Rdf_term in
           match Rdf_graph.(literal_objects_of g
-             ~sub:(Iri p.iri) ~pred:Rdf_dc.format)
+             ~sub:(Iri (iri p)) ~pred:Rdf_dc.format)
           with
             [] -> Lwt.return_none
           | lit :: _ ->
@@ -195,17 +291,18 @@ let iri_parent_path =
         Some iri
 
 let parent p =
-  match List.rev p.rel with
-    [] -> None
-  | h :: q ->
+  let mk_filename rel = List.fold_left Filename.concat p.root_dir rel in
+  match List.rev p.rel, p.kind with
+    [], _ -> Lwt.return_none
+  | h :: q, (`Dir | `File) ->
       let rel = List.rev q in
-      match iri_parent_path p.iri with
-        None -> assert false
-      | Some iri ->
-          Some
-            { iri ; root = p.root ;
-              rel ; kind = Some `Dir ; mime = None ;
-            }
+      Lwt.return_some { p with rel ; kind = `Dir ; mime = None }
+  | h :: q, (`Unknown | `Acl `Unknown | `Acl `File | `Meta `Unknown | `Meta `File) ->
+      let rel = List.rev q in
+      let%lwt kind = get_kind (mk_filename rel) in
+      Lwt.return_some { p with rel ; kind ; mime = None }
+  | _, (`Acl `Dir | `Meta `Dir) ->
+      Lwt.return_some { p with kind = `Dir ; mime = None }
 
 let container_graph_of_dir iri dirname =
   let g = Rdf_graph.open_graph iri in
@@ -259,19 +356,18 @@ let container_graph_of_dir iri dirname =
 
 let create_container_graph p =
   match p.kind with
-    Some `Dir -> container_graph_of_dir p.iri (path_to_filename p)
-  | None | Some `File | Some `Acl | Some `Meta ->
-      assert false
+    `Dir -> container_graph_of_dir (iri p) (path_to_filename p)
+  | _ -> assert false
 
 let path_is_container path =
   match path.kind with
-    Some `Dir ->
+    `Dir ->
       begin
         let meta = meta_path path in
         match%lwt read_path_graph meta with
           None -> Lwt.return_false
         | Some g ->
-            Lwt.return (Ldp_http.is_container ~iri: path.iri g)
+            Lwt.return (Ldp_http.is_container ~iri: (iri path) g)
       end
   | _ -> Lwt.return_false
 
@@ -309,20 +405,20 @@ let available_dir_entry k =
      already found but not yet created. *)
   fun ?(slug="") path ->
     match path.kind with
-    | Some `Dir ->
+    | `Dir ->
         begin
           let dir = path_to_filename path in
           let%lwt basename = iter dir slug (if slug = "" then 1 else 0) in
           let rel = path.rel @ [ basename ] in
-          let iri =
+          let root_iri =
             let l = match k with
               | `Dir -> [basename ; ""]
               | _ -> [basename]
             in
-            iri_append_path path.iri l
+            iri_append_path (iri path) l
           in
           Lwt.return_some
-            { root = path.root; rel ; iri ; kind = Some k ; mime = None }
+            { root_dir = path.root_dir; rel ; root_iri ; kind = k ; mime = None }
         end
     | _ -> Lwt.return_none
 
@@ -368,8 +464,7 @@ let post_mkdir path meta_graph =
           in
           Lwt.return_true
 
-let post_file path write =
-  let abs_file = path_to_filename path in
+let try_write_file abs_file write =
   match%lwt bool_of_unix_call
     Lwt_io.(with_file ~mode:Output abs_file) write
   with
@@ -378,9 +473,90 @@ let post_file path write =
       Lwt.return_false
   | true ->
       let%lwt () = Server_log._info_lwt
-        (fun f -> f "File created: %s" abs_file)
+        (fun f -> f "File written: %s" abs_file)
       in
       Lwt.return_true
+
+let set_path_format path mime =
+  let meta_path = meta_path path in
+  let%lwt g =
+    match%lwt read_path_graph meta_path with
+    | None -> Lwt.return (Rdf_graph.open_graph (iri meta_path))
+    | Some g -> Lwt.return g
+  in
+  let sub = Rdf_term.Iri (iri path) in
+  let pred = Rdf_dc.format in
+  let old = g.Rdf_graph.objects_of ~sub ~pred in
+  List.iter (fun obj -> g.Rdf_graph.rem_triple ~sub ~pred ~obj) old;
+  g.Rdf_graph.add_triple ~sub ~pred
+    ~obj:(Rdf_term.term_of_literal_string mime);
+  let%lwt _ok = store_path_graph meta_path g in
+  Lwt.return_unit
+
+let post_file path ?mime write =
+  let abs_file = path_to_filename path in
+  let%lwt ok = try_write_file abs_file write in
+  let%lwt () =
+    match mime with
+    | Some mime when ok && not (is_graph_path path) ->
+        set_path_format path mime
+    | _ -> Lwt.return_unit
+  in
+  Lwt.return ok
+
+let rec mkdirp =
+  let rec list acc = function
+  | None -> Lwt.return acc
+  | Some path ->
+      match path.kind with
+      | `Dir -> Lwt.return acc
+      | `File | `Acl _| `Meta _ ->
+          Ldp_types.fail (Not_a_container path)
+      | `Unknown ->
+          parent path >>= list (path :: acc)
+  in
+  let rec create = function
+    [] -> Lwt.return_true
+  | p::q ->
+      let g = Rdf_graph.open_graph (iri p) in
+      g.Rdf_graph.add_triple
+        ~sub: (Rdf_term.Iri (iri p))
+        ~pred: Rdf_rdf.type_
+        ~obj:(Rdf_term.Iri Rdf_ldp.c_BasicContainer);
+      if%lwt post_mkdir p g then
+        create q
+      else
+        Lwt.return_false
+  in
+  fun path ->
+    match%lwt list [] path with
+    | exception e -> Lwt.fail e
+    | l -> create l
+
+let put_file path ?mime write =
+  let%lwt ok =
+    match path.kind with
+      `Dir -> Lwt.return false
+    | `File | `Acl _ | `Meta _ ->
+        post_file path ?mime write
+    | `Unknown ->
+        if%lwt parent path >>= mkdirp then
+          post_file path ?mime write
+        else
+          Lwt.return_false
+  in
+  if ok then
+    (* update kind if it was unknown *)
+    match path.kind with
+      `Unknown ->
+        let%lwt kind = get_kind
+          (List.fold_left Filename.concat path.root_dir path.rel)
+        in
+        path.kind <- kind ;
+        Lwt.return ok
+    | _ -> Lwt.return ok
+  else
+    Lwt.return ok
 
 let sha256 str =
   let hash = Cryptokit.Hash.sha256 () in
