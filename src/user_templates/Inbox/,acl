@@ -1,0 +1,16 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+
+<#apendall>
+    a acl:Authorization ;
+    acl:accessTo <.> ;
+    acl:agentClass <http://xmlns.com/foaf/0.1/Agent> ;
+    acl:mode acl:Append .
+
+<#owner>
+    a acl:Authorization ;
+    acl:accessTo <.>, <> ;
+    acl:agent <{webid}> ;
+    acl:defaultForNew <.> ;
+    acl:mode acl:Control, acl:Read, acl:Write .
+

@@ -267,6 +267,7 @@ let path_mime p =
               p.mime <- Some lit.lit_value ;
               Lwt.return (Some lit.lit_value)
 
+(*
 let iri_parent_path =
   let rec remove_empty_strings = function
     "" :: q -> remove_empty_strings q
@@ -289,6 +290,7 @@ let iri_parent_path =
           | Iri.Absolute _ -> Iri.with_path iri (Iri.Absolute path)
         in
         Some iri
+*)
 
 let parent p =
   let mk_filename rel = List.fold_left Filename.concat p.root_dir rel in

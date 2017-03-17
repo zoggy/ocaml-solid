@@ -902,8 +902,9 @@ let _ = check_ocamlfind_package conf "ppx_sexp_conv";;
 let _ = check_ocamlfind_package conf "tls"
 let _ = check_ocamlfind_package conf "curl"
 let _ = check_ocamlfind_package conf "ocf"
+let _ = check_ocamlfind_package conf "ppx_blob"
 let _ = check_ocamlfind_package conf ~min_version: [2;8] "websocket"
-let _ = check_ocamlfind_package conf ~min_version: [0;4;0] "webmachine"
+let _ = check_ocamlfind_package conf (*~min_version: [0;4;0]*) "webmachine"
 
 let _ = !print "\n###\n"
 

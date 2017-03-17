@@ -14,6 +14,32 @@ let iri_dot = Iri.of_string "./"
 let iri_empty = Iri.of_string ""
 let iri_sharp str = Iri.of_string ("#"^str)
 
+let re_var var = Re.(compile (str ("{"^var^"}")))
+
+let templates iri =
+  [ iri^"Preferences/prefs.ttl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Preferences/prefs.ttl"] ;
+
+    iri^"Private/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Private/,acl"] ;
+
+    iri^"Applications/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Applications/,acl"] ;
+
+    iri^"Public/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Public/,acl"] ;
+
+    iri^"Inbox/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Inbox/,acl"] ;
+
+    iri^"Shared/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Shared/,acl"] ;
+
+    iri^"Work/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/Work/,acl"] ;
+
+  ]
+
 let mk_root_acl root_path webid =
   let%lwt () = Server_log._debug_lwt
     (fun m -> m "preparing root acl graph for %s" (Server_fs.path_to_filename root_path))
@@ -34,7 +60,43 @@ let mk_root_acl root_path webid =
   let%lwt () = Server_log._debug_lwt
     (fun m -> m "creating acl file %s" (Server_fs.path_to_filename acl_path))
   in
-  Server_fs.store_path_graph acl_path g
+  if%lwt Server_fs.store_path_graph acl_path g then
+    Lwt.return_unit
+  else
+    Server_log._err_lwt
+      (fun f -> f "Could not create %s" (Server_fs.path_to_filename acl_path))
+
+let mk_templates root_path webid =
+  let templates = templates root_path in
+  let vars = [
+      re_var "webid", Iri.to_string webid ;
+    ]
+  in
+  let replace_var str (re, by) = Re.replace_string re ~all:true ~by str in
+  let mk (uri, mime, template) =
+    let content = List.fold_left replace_var template vars in
+    let%lwt path = Server_fs.path_of_uri (Uri.of_string uri) in
+    let () =
+      match mime with
+      Some s when s = Ldp_http.mime_turtle ->
+          begin
+            (* test graph syntax *)
+            let iri = Server_fs.iri path in
+            let g = open_graph iri in
+            try Rdf_ttl.from_string g content
+            with e -> Server_log._err
+                (fun f -> f "%s: %s" (Iri.to_string iri) (Printexc.to_string e))
+          end
+      | _ -> ()
+    in
+    match%lwt Server_fs.put_file path ?mime
+      (fun oc -> Lwt_io.write oc content)
+    with
+      false -> Server_log._err_lwt
+        (fun f -> f "Could not create %s" (Server_fs.path_to_filename path))
+    | true -> Lwt.return_unit
+  in
+  Lwt_list.iter_p mk templates
 
 let add ?webid login =
   let%lwt webid =
@@ -42,7 +104,7 @@ let add ?webid login =
     | Some iri -> Lwt.return iri
     | None -> Lwt.fail_with "missing webid"
   in
-  (* FIXME: change when virtual host will be handled in config file *)
+  (* FIXME: change when virtual hosts will be handled in config file *)
   let root_uri = Printf.sprintf "https://localhost:%d/~%s/"
     (Ocf.get Server_conf.port) login
   in
@@ -53,8 +115,8 @@ let add ?webid login =
   else
     let g = open_graph Server_fs.(iri (meta_path root_path)) in
     if%lwt Server_fs.post_mkdir root_path g then
-      let%lwt b = mk_root_acl root_path webid in
-      Lwt.return_unit
+      let%lwt () = mk_root_acl root_path webid in
+      mk_templates (Iri.to_uri (Server_fs.iri root_path)) webid
     else
       Lwt.fail_with (Printf.sprintf "Directory %s not created" root_dir)
 
