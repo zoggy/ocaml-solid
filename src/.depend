@@ -14,14 +14,18 @@ ldp_js.cmo : ldp_js.cmi
 ldp_js.cmx : ldp_js.cmi
 ldp_log.cmo : ldp_log.cmi
 ldp_log.cmx : ldp_log.cmi
+ldp_misc.cmo : ldp_misc.cmi
+ldp_misc.cmx : ldp_misc.cmi
 ldp_tls.cmo : ldp_http.cmi ldp_cookies.cmi ldp_tls.cmi
 ldp_tls.cmx : ldp_http.cmx ldp_cookies.cmx ldp_tls.cmi
 ldp_types.cmo : ldp_types.cmi
 ldp_types.cmx : ldp_types.cmi
+server_acl.cmo : server_log.cmi server_fs.cmo
+server_acl.cmx : server_log.cmx server_fs.cmx
 server_conf.cmo : server_log.cmi ldp_log.cmi
 server_conf.cmx : server_log.cmx ldp_log.cmx
-server_fs.cmo : server_log.cmi server_conf.cmo
-server_fs.cmx : server_log.cmx server_conf.cmx
+server_fs.cmo : server_log.cmi server_conf.cmo ldp_types.cmi ldp_http.cmi
+server_fs.cmx : server_log.cmx server_conf.cmx ldp_types.cmx ldp_http.cmx
 server_http_tls.cmo : server_conf.cmo ldp_log.cmi cohttp_tls.cmo
 server_http_tls.cmx : server_conf.cmx ldp_log.cmx cohttp_tls.cmx
 server_log.cmo : ldp_log.cmi server_log.cmi
@@ -30,12 +34,10 @@ server_main.cmo : server_webmachine.cmo server_log.cmi server_http_tls.cmo \
     server_conf.cmo
 server_main.cmx : server_webmachine.cmx server_log.cmx server_http_tls.cmx \
     server_conf.cmx
-server_perm.cmo : server_log.cmi server_fs.cmo
-server_perm.cmx : server_log.cmx server_fs.cmx
-server_webmachine.cmo : server_perm.cmo server_log.cmi server_fs.cmo \
-    cohttp_tls.cmo
-server_webmachine.cmx : server_perm.cmx server_log.cmx server_fs.cmx \
-    cohttp_tls.cmx
+server_webmachine.cmo : server_log.cmi server_fs.cmo server_acl.cmo \
+    ldp_http.cmi cohttp_tls.cmo
+server_webmachine.cmx : server_log.cmx server_fs.cmx server_acl.cmx \
+    ldp_http.cmx cohttp_tls.cmx
 solid_profile.cmo : ldp_types.cmi ldp_http.cmi solid_profile.cmi
 solid_profile.cmx : ldp_types.cmx ldp_http.cmx solid_profile.cmi
 solid_tool_common.cmo : ldp_types.cmi ldp_tls.cmi ldp_http.cmi ldp_curl.cmi \
@@ -65,6 +67,7 @@ ldp_curl.cmi : ldp_http.cmi
 ldp_http.cmi : ldp_types.cmi
 ldp_js.cmi : ldp_http.cmi
 ldp_log.cmi :
+ldp_misc.cmi :
 ldp_tls.cmi : ldp_http.cmi
 ldp_types.cmi :
 server_log.cmi :

@@ -64,12 +64,12 @@ let is_file fname =
     | { Unix.st_kind = Unix.S_DIR } -> Lwt.return_some false
     | _ -> Lwt.return_none
   in
-  Server_log._debug_lwt
+  let%lwt () = Server_log._debug_lwt
     (fun m -> m "%s is_file: %s"
        fname (match r with None -> "NONE" | Some true -> "true" | Some false -> "false")
-    );
+    )
+  in
   Lwt.return r
-
 
 let get_kind fname =
   match%lwt is_file fname with

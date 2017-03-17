@@ -216,7 +216,7 @@ class r (user:Iri.t option) path =
       Wm.continue false rd
 
     method forbidden rd =
-      let%lwt rights = Server_perm.rights_for_path user path in
+      let%lwt rights = Server_acl.rights_for_path user path in
       let%lwt () = log
         (fun m -> m "rights %d to user %s on %s"
           rights
@@ -226,12 +226,12 @@ class r (user:Iri.t option) path =
       let%lwt ok =
         match rd.Wm.Rd.meth with
           `GET | `OPTIONS | `HEAD ->
-            Lwt.return (Server_perm.has_read rights)
+            Lwt.return (Server_acl.has_read rights)
         | `POST ->
             Server_fs.path_is_container path >|=
-              (&&) (Server_perm.has_write rights || Server_perm.has_append rights)
+              (&&) (Server_acl.has_write rights || Server_acl.has_append rights)
         | `PUT | `DELETE | `PATCH ->
-            Lwt.return (Server_perm.has_write rights)
+            Lwt.return (Server_acl.has_write rights)
         | _ -> Lwt.return_true
       in
       Wm.continue (not ok) rd
