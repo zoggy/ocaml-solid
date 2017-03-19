@@ -108,11 +108,11 @@ let templates iri =
     iri^"Inbox/,acl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Inbox/,acl"] ;
 
-    iri^"Preferences/,acl", Some Ldp_http.mime_turtle,
-    [%blob "user_templates/Preferences/,acl"] ;
+    iri^"settings/,acl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/settings/,acl"] ;
 
-    iri^"Preferences/prefs.ttl", Some Ldp_http.mime_turtle,
-    [%blob "user_templates/Preferences/prefs.ttl"] ;
+    iri^"settings/preferences.ttl", Some Ldp_http.mime_turtle,
+    [%blob "user_templates/settings/preferences.ttl"] ;
 
     iri^"Private/,acl", Some Ldp_http.mime_turtle,
     [%blob "user_templates/Private/,acl"] ;

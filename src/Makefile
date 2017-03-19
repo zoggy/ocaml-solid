@@ -264,12 +264,12 @@ include .depend
 USER_TEMPLATES= \
 	user_templates/Applications/,acl \
 	user_templates/Inbox/,acl \
-	user_templates/Preferences/,acl \
-	user_templates/Preferences/prefs.ttl \
 	user_templates/Private/,acl \
 	user_templates/profile/card \
 	user_templates/profile/card,acl \
 	user_templates/Public/,acl \
+	user_templates/settings/,acl \
+	user_templates/settings/preferences.ttl \
 	user_templates/Shared/,acl \
 	user_templates/Work/,acl
 

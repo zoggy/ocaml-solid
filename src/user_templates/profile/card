@@ -24,7 +24,7 @@ pro:card
     cert:key
        <#key>;
     ws:preferencesFile
-       <../Preferences/prefs.ttl>;
+       <../settings/preferences.ttl>;
     ws:storage
        storage:;
     terms:inbox
