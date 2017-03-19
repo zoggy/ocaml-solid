@@ -587,3 +587,43 @@ let path_last_modified p =
     let str = CalendarLib.Printer.Fcalendar.sprint date_rfc1123_fmt t in
     Lwt.return_some str
   with _ -> Lwt.return_none
+
+let path_can_be_deleted p =
+  match p.kind with
+  | `Unknown -> Lwt.return_false
+  | `Acl _
+  | `Meta _
+  | `File -> Lwt.return_true
+  | `Dir ->
+      let abs = path_to_filename p in
+      let open Lwt_unix in
+      match%lwt opendir abs with
+      | exception _ -> Lwt.return_false
+      | h ->
+          let rec iter () =
+            match%lwt readdir h with
+            | exception _ -> Lwt.return_true
+            | entry when
+                  entry = Filename.current_dir_name
+                  || entry = Filename.parent_dir_name
+                  || entry = acl_suffix
+                  || entry = meta_suffix -> iter ()
+            | _ -> Lwt.return_false
+          in
+          let%lwt empty = iter () in
+          let%lwt () = closedir h in
+          Lwt.return empty
+
+let delete_path p =
+  match p.kind with
+  | `Unknown -> Lwt.return_false
+  | `Acl _
+  | `Meta _ -> bool_of_unix_call Lwt_unix.unlink (path_to_filename p)
+  | `File ->
+      let%lwt () = safe_unlink (path_to_filename (acl_path p)) in
+      let%lwt () = safe_unlink (path_to_filename (meta_path p)) in
+      bool_of_unix_call Lwt_unix.unlink (path_to_filename p)
+  | `Dir ->
+      let%lwt () = safe_unlink (path_to_filename (acl_path p)) in
+      let%lwt () = safe_unlink (path_to_filename (meta_path p)) in
+      bool_of_unix_call Lwt_unix.rmdir (path_to_filename p)

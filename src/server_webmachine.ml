@@ -199,7 +199,8 @@ class r (user:Iri.t option) path =
       | `Dir -> Wm.continue true rd
       | _ -> Wm.continue false rd
 
-    (* method options rd : ((string * string) list, 'body) op *)
+    (* method options rd : ((string * string) list, 'body) op
+        see also https://github.com/solid/solid/issues/45 *)
 
     method allowed_methods rd =
       Wm.continue [
@@ -230,7 +231,12 @@ class r (user:Iri.t option) path =
         | `POST ->
             Server_fs.path_is_container path >|=
               (&&) (Server_acl.has_write rights || Server_acl.has_append rights)
-        | `PUT | `DELETE | `PATCH ->
+        | `DELETE ->
+            if Server_acl.has_write rights then
+             Server_fs.path_can_be_deleted path
+            else
+              Lwt.return_false
+        | `PUT | `PATCH ->
             Lwt.return (Server_acl.has_write rights)
         | _ -> Lwt.return_true
       in
@@ -371,6 +377,10 @@ class r (user:Iri.t option) path =
           in
           let rd = if existed then rd else rd_set_location rd path in
           Wm.continue ok rd
+
+    method delete_resource rd =
+      let%lwt deleted = Server_fs.delete_path path in
+      Wm.continue deleted rd
 
     method private to_container_ttl rd =
       let%lwt g = Server_fs.create_container_graph path in

@@ -88,4 +88,4 @@ let rights_for_path user p =
         | Some parent -> iter ~default: true parent
   in
   iter ~default: false p
-        
+
