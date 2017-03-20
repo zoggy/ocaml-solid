@@ -2,8 +2,8 @@
 module type P =
   sig
     val dbg : string -> unit Lwt.t
-    val cert : string
-    val key : string
+    val cert : string option
+    val key : string option
   end
 
 let reader_of_string str counter n =
@@ -121,12 +121,18 @@ module Make (P:P) : Ldp_http.Requests =
       Curl.set_sslverifypeer conn true;
       Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_HOSTNAME;
 
-      (* Uncomment this to test without ssl checks
-      Curl.set_sslverifypeer conn false;
-      Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_NONE;
+      begin
+        match P.cert, P.key with
+          Some cert, Some key ->
+            Curl.set_sslcert conn cert ;
+            Curl.set_sslkey conn key
+        | _ ->
+            ()
+      end;
+      (* uncomment this not to verify host
+            Curl.set_sslverifypeer conn false;
+            Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_NONE;
       *)
-      Curl.set_sslcert conn P.cert ;
-      Curl.set_sslkey conn P.key ;
       begin
         match String.uppercase_ascii (Cohttp.Code.string_of_method meth) with
         | "PUT" -> Curl.set_put conn true
@@ -194,3 +200,25 @@ module Make (P:P) : Ldp_http.Requests =
       in
       Lwt.return (resp, body)
   end
+
+let make ?cache ?cert ~dbg =
+  let (cert,privkey) =
+    match cert with
+      Some (cert,key) -> (Some cert, Some key)
+    | None -> (None, None)
+  in
+  let module P =
+  struct
+    let dbg = dbg
+    let cert = cert
+    let key = privkey
+  end
+  in
+  let%lwt cache =
+    match cache with
+      None -> Lwt.return (module Ldp_http.No_cache : Ldp_http.Cache)
+    | Some dir -> Ldp_cache.of_dir dir
+  in
+  let module C = (val cache: Ldp_http.Cache) in
+  let module H = Ldp_http.Cached_http (C) (Make(P)) in
+  Lwt.return (module H : Ldp_http.Http)

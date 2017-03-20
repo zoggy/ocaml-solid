@@ -3,8 +3,7 @@ open Lwt.Infix
 
 type profile =
   { id: string [@ocf Ocf.Wrapper.string, "me"] ;
-    privkey: string [@ocf Ocf.Wrapper.string, "client.key"] ;
-    cert: string [@ocf Ocf.Wrapper.string, "client.pem"] ;
+    cert: (string * string) option [@ocf Ocf.Wrapper.(option (pair string string)), None] ;
     certificates: string option [@ocf Ocf.Wrapper.(option string), None] ;
     cache: string option [@ocf Ocf.Wrapper.(option string), None] ;
     debug: bool [@ocf Ocf.Wrapper.bool, false] ;
@@ -13,52 +12,22 @@ type profile =
 let usage = Printf.sprintf "Usage: %s [options] [args]\nwhere options are:" Sys.argv.(0)
 
 let ldp_http_curl profile =
-  let module P =
-  struct
-    let dbg =
-      if profile.debug then
-        Lwt_io.write_line Lwt_io.stderr
-      else
-        (fun _ -> Lwt.return_unit)
-    let cert = profile.cert
-    let key = profile.privkey
-  end
+  let dbg =
+    if profile.debug then
+      Lwt_io.write_line Lwt_io.stderr
+    else
+      (fun _ -> Lwt.return_unit)
   in
-  let%lwt cache =
-    match profile.cache with
-      None -> Lwt.return (module Ldp_http.No_cache : Ldp_http.Cache)
-    | Some dir -> Ldp_cache.of_dir dir
-  in
-  let module C = (val cache: Ldp_http.Cache) in
-  let module H = Ldp_http.Cached_http (C) (Ldp_curl.Make(P)) in
-  Lwt.return (module H : Ldp_http.Http)
+  Ldp_curl.make ?cache:profile.cache ?cert:profile.cert ~dbg
 
 let ldp_http_tls profile =
-  let%lwt authenticator = X509_lwt.authenticator `No_authentication_I'M_STUPID in
-(*  let%lwt authenticator = X509_lwt.authenticator (`Ca_dir cert_dir) in*)
-  let%lwt certificates = X509_lwt.private_of_pems
-    ~cert:profile.cert ~priv_key: profile.privkey >>=
-    fun c -> Lwt.return (`Single c)
+  let dbg =
+    if profile.debug then
+      Lwt_io.write_line Lwt_io.stderr
+    else
+      (fun _ -> Lwt.return_unit)
   in
-  let module P =
-  struct
-    let dbg =
-      if profile.debug then
-        Lwt_io.write_line Lwt_io.stderr
-      else
-        (fun _ -> Lwt.return_unit)
-    let authenticator = authenticator
-    let certificates = certificates
-  end
-  in
-  let%lwt cache =
-    match profile.cache with
-      None -> Lwt.return (module Ldp_http.No_cache : Ldp_http.Cache)
-    | Some dir -> Ldp_cache.of_dir dir
-  in
-  let module C = (val cache: Ldp_http.Cache) in
-  let module H = Ldp_http.Cached_http (C) (Ldp_tls.Make(P)) in
-  Lwt.return (module H : Ldp_http.Http)
+  Ldp_tls.make ?cache:profile.cache ?cert:profile.cert ~dbg
 
 let profiles = Ocf.list profile_wrapper []
 
@@ -80,18 +49,18 @@ let find_profile id =
   in
   let rc_file = Filename.concat rc_dir "profiles.json" in
   Ocf.from_file (Ocf.as_group profiles) rc_file ;
-  let map = map_filename ~dir:rc_dir in
-  let map_opt = function
+  let map_opt f = function
   | None -> None
-  | Some s -> Some (map_filename ~dir:rc_dir s)
+  | Some s -> Some (f s)
   in
   try
     let p = List.find (fun p -> p.id = id) (Ocf.get profiles) in
     { p with
-      privkey = map p.privkey ;
-      cert = map p.cert ;
-      certificates = map_opt p.certificates ;
-      cache = map_opt p.cache ;
+      cert = map_opt (fun (s1, s2) ->
+         map_filename ~dir:rc_dir s1, map_filename ~dir:rc_dir s2)
+        p.cert ;
+      certificates = map_opt (map_filename ~dir:rc_dir) p.certificates ;
+      cache = map_opt (map_filename ~dir:rc_dir) p.cache ;
     }
   with Not_found -> failwith (Printf.sprintf "No profile %S" id)
 
@@ -99,8 +68,18 @@ let parse ?(options=[]) ?(usage=usage) () =
   let profile = ref default_profile in
   let curl = ref false in
   let identity id = profile := (find_profile id) in
-  let privkey s = profile := { !profile with privkey = map_filename s } in
-  let cert s = profile := { !profile with cert = map_filename s } in
+  let privkey s =
+    match !profile.cert with
+      None -> profile := { !profile with cert = Some ("", map_filename s) }
+    | Some (t,_) ->
+        profile := { !profile with cert = Some (t, map_filename s) }
+  in
+  let cert s =
+    match !profile.cert with
+      None -> profile := { !profile with cert = Some (map_filename s, "") }
+    | Some (_,t) ->
+        profile := { !profile with cert = Some (map_filename s, t) }
+  in
   let certificates s =
     profile := { !profile with certificates = Some (map_filename s) }
   in
@@ -113,12 +92,10 @@ let parse ?(options=[]) ?(usage=usage) () =
       "id use profile with corresponding id" ;
 
       "--privkey", Arg.String privkey,
-      Printf.sprintf " <file> read private client key from <file> (default is %s)"
-        !profile.privkey;
+      Printf.sprintf " <file> read private client key from <file>" ;
 
       "--cert", Arg.String cert,
-      Printf.sprintf " <file> read client certificate from pem <file> (default is %s)"
-        !profile.cert ;
+      Printf.sprintf " <file> read client certificate from pem <file>" ;
 
       "--certificates", Arg.String certificates,
       " <dir> use certificates in <dir> to authenticate server";

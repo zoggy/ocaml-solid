@@ -1,7 +1,6 @@
 type profile = {
   id : string;
-  privkey : string;
-  cert : string;
+  cert : (string * string) option; (** cert * priv key *)
   certificates : string option;
   cache : string option;
   debug: bool ;

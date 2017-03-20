@@ -11,6 +11,8 @@ let profile = ref false
 type mode = Server | Add_user of string
 let mode = ref Server
 
+let use_curl = ref false
+
 let options =
   [ "-c", Arg.String (Ocf.from_file conf_options),
     "file load configuration from file" ;
@@ -36,6 +38,9 @@ let options =
 
     "--profile", Arg.Set profile,
     " create profile/card[,acl]" ;
+
+    "--curl", Arg.Set use_curl,
+    " use curl to execute GET requests"
   ]
 
 let usage = Printf.sprintf "Usage: %s [options]\nwhere options are:" Sys.argv.(0)
@@ -49,6 +54,7 @@ let main () =
           Server_user.add ?name:!name  ?cert_label:!cert_label
             ?pem:!pem ?webid:!webid ~profile:!profile login
       | Server ->
+          let%lwt () = Server_auth.init_http ~curl: !use_curl in
           let%lwt () = Server_log._app_lwt
             (fun m -> m "Using documents from %s" (Ocf.get Server_conf.storage_root))
           in

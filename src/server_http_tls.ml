@@ -2,18 +2,24 @@ open Lwt
 open Cohttp
 open Cohttp_tls
 
-let server_cert = "./server-certificates/server.pem"
-let server_key = "./server-certificates/server.key"
-
-let uid_asn_oid = "0.9.2342.19200300.100.1.1"
+let iri_subject_alt_names cert =
+  List.fold_left
+    (fun acc -> function
+       | `URI str -> (Iri.of_string str) :: acc
+       | _ -> acc
+    ) [] (X509.subject_alt_names cert)
 
 let get_cert_info cert =
+  Printf.sprintf "Subject Alternative Name (IRI): %s"
+    (String.concat ", " (List.map Iri.to_string (iri_subject_alt_names cert)))
+(*
   let sub = X509.subject cert in
   let issuer = X509.issuer cert in
-  Printf.sprintf "Subject: %s\nIssuer: %s\nHostnames: %s"
+  Printf.sprintf "Subject: %s\nIssuer: %s\nSubject_alt_names(URI): %s"
     (X509.distinguished_name_to_string sub)
     (X509.distinguished_name_to_string issuer)
-    (String.concat ", " (X509.hostnames cert))
+    (String.concat ", " (List.map Iri.to_string (iri_subject_alt_names cert)))
+*)
 
 (* FIXME: add user authentication with cookies here *)
 
@@ -30,20 +36,26 @@ let server http_handler =
   in
   let callback _conn req body =
     let (tls_session,_) = _conn in
-    let%lwt info_conn =
+    let%lwt user =
       match Tls_lwt.Unix.epoch tls_session with
-        `Error -> Lwt.return "TLS epoch: `Error"
+        `Error -> Lwt.return_none
       | `Ok epoch_data ->
           let open Tls.Core in
           match epoch_data.peer_certificate with
-            None -> Lwt.return "TLS epoch: no peer certificate"
-          | Some c -> Lwt.return
-            (Printf.sprintf "TLS epoch: %s" (get_cert_info c))
+            None -> Lwt.return_none
+          | Some c ->
+              let%lwt () =
+                Server_log._debug_lwt
+                  (fun m -> m "Info conn: %s"
+                     (Printf.sprintf "TLS epoch: %s" (get_cert_info c))
+                  )
+              in
+              Server_auth.user_of_cert c
     in
     let uri = req |> Request.uri in
     let uri_s = uri |> Uri.to_string in
-    let%lwt () = Ldp_log.__debug_lwt (fun m -> m "New query: %s" uri_s) in
-    http_handler ?user: None req body
+    let%lwt () = Server_log._debug_lwt (fun m -> m "New query: %s" uri_s) in
+    http_handler ?user req body
     (*match Uri.path uri with
         "/private" ->
           let t = Tls_lwt.reneg tls_session

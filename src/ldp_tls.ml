@@ -87,3 +87,29 @@ module Make (P:P) : Ldp_http.Requests =
       in
       Lwt.return (resp, body)
   end
+
+let make ?cache ?cert ~dbg =
+  let%lwt authenticator = X509_lwt.authenticator `No_authentication_I'M_STUPID in
+(*  let%lwt authenticator = X509_lwt.authenticator (`Ca_dir cert_dir) in*)
+  let%lwt certificates = 
+    match cert with
+    | None -> Lwt.return `None
+    | Some (cert, priv_key) ->
+        X509_lwt.private_of_pems ~cert ~priv_key >>=
+          fun c -> Lwt.return (`Single c)
+  in
+  let module P =
+  struct
+    let dbg = dbg
+    let authenticator = authenticator
+    let certificates = certificates
+  end
+  in
+  let%lwt cache =
+    match cache with
+      None -> Lwt.return (module Ldp_http.No_cache : Ldp_http.Cache)
+    | Some dir -> Ldp_cache.of_dir dir
+  in
+  let module C = (val cache: Ldp_http.Cache) in
+  let module H = Ldp_http.Cached_http (C) (Make(P)) in
+  Lwt.return (module H : Ldp_http.Http)

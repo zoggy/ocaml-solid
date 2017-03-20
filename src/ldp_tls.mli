@@ -8,3 +8,6 @@ module type P =
   end
 
 module Make : P -> Ldp_http.Requests
+
+val make : ?cache:string -> ?cert:(string*string) ->
+  dbg:(string -> unit Lwt.t) -> (module Ldp_http.Http) Lwt.t

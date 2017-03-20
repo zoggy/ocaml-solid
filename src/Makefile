@@ -120,6 +120,7 @@ SERVER_CMXFILES=\
 	server_log.cmx \
 	server_conf.cmx \
 	cohttp_tls.cmx \
+	server_auth.cmx \
 	server_http_tls.cmx \
 	server_fs.cmx \
 	server_acl.cmx \

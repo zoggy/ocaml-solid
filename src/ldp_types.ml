@@ -42,6 +42,9 @@ let register_string_of_error f =
   let g = !ref_string_of_error in
   ref_string_of_error := f g
 
+let () = Printexc.register_printer
+  (function Error e -> Some (string_of_error e) | _ -> None)
+
 type error +=
 | Invalid_method of string
 | Missing_pred of Iri.t * Iri.t
