@@ -68,21 +68,23 @@ let iri_of_cert cert =
 
 let verify_webid ~exp ~modu webid g =
   let exp = Rdf_term.term_of_literal_string
-    ~typ: (Rdf_rdf.xsd_ "hexBinary")
-    (Z.format "0x" exp)
+    ~typ: (Rdf_rdf.xsd_ "int") (* or integer ? but databox use int *)
+    (Z.to_string  exp)
   in
   let modu = Rdf_term.term_of_literal_string
-    ~typ: Rdf_rdf.xsd_integer
-    (Z.to_string modu)
+    ~typ: (Rdf_rdf.xsd_ "hexBinary")
+    (Z.format "0x" modu)
   in
   let q = Printf.sprintf
     "PREFIX : <http://www.w3.org/ns/auth/cert#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 ASK { %s :key [ :modulus %s ; :exponent %s ; ] .}"
     Rdf_term.(string_of_term (Iri webid))
-    (Rdf_term.string_of_term exp)
     (Rdf_term.string_of_term modu)
+    (Rdf_term.string_of_term exp)
   in
+  Server_log._debug
+    (fun f -> f "auth webid sparql = %s" q);
   let q = Rdf_sparql.query_from_string q in
   let dataset = Rdf_ds.simple_dataset g in
   Rdf_sparql.ask ~base:(g.Rdf_graph.name()) dataset q
@@ -98,6 +100,9 @@ let user_of_cert cert =
             let graph_iri = Iri.with_query graph_iri None in
             let%lwt g = get graph_iri in
             if verify_webid ~exp: e ~modu: n webid g then
+              let%lwt () = Server_log._debug_lwt
+                (fun f -> f "webid %s verified" (Iri.to_string webid))
+              in
               Lwt.return_some webid
             else
               Lwt.return_none
@@ -105,8 +110,8 @@ let user_of_cert cert =
       | _ -> Lwt.return_none
 
 let init_http ~curl =
-  let dbg s = Server_log._err_lwt (fun f -> f "%s" s) in
-  let%lwt h = if curl then 
+  let dbg s = Server_log._debug_lwt (fun f -> f "%s" s) in
+  let%lwt h = if curl then
       Ldp_curl.make ?cache: None ?cert:None ~dbg
     else
       Ldp_tls.make ?cache: None ?cert:None ~dbg

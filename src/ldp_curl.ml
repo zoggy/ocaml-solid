@@ -129,10 +129,10 @@ module Make (P:P) : Ldp_http.Requests =
         | _ ->
             ()
       end;
-      (* uncomment this not to verify host
+      (* uncomment this not to verify host *)
             Curl.set_sslverifypeer conn false;
             Curl.set_sslverifyhost conn Curl.SSLVERIFYHOST_NONE;
-      *)
+
       begin
         match String.uppercase_ascii (Cohttp.Code.string_of_method meth) with
         | "PUT" -> Curl.set_put conn true
