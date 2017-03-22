@@ -13,32 +13,12 @@ end
 
 let log f = Server_log._debug_lwt f
 
-let mime_xhtml = "application/xhtml+xml"
-let mime_xhtml_charset = "application/xhtml+xml;charset=utf-8"
+let mime_xhtml = Server_page.mime_xhtml
+let mime_xhtml_charset = Server_page.mime_xhtml_charset
 let mime_html = "text/html"
 
-let error_page title message =
-  let module Xh = Xtmpl_xhtml in
-  let module X = Xtmpl_rewrite in
-  let xml =
-    Xh.html
-      ~atts: (X.atts_one ("","xmlns") [X.cdata "http://www.w3.org/1999/xhtml"])
-      [
-        Xh.header
-          [
-            Xh.title [X.cdata title] ;
-            Xh.meta ~atts:(X.atts_of_list
-             [ ("","http-equiv"), [X.cdata "Content-Type"] ;
-               ("","content"), [X.cdata mime_xhtml_charset] ;
-             ]) [] ;
-          ];
-        Xh.body [X.cdata message] ;
-      ]
-  in
-  X.to_string [xml]
-
 let error_rd rd title message =
-  let body = error_page title message in
+  let body = Server_page.page title [Xtmpl_rewrite.cdata message] in
   let rd = { rd with Wm.Rd.resp_body = `String body } in
   let rd = Wm.Rd.with_resp_headers
     (fun h -> Cohttp.Header.add h "content-type" mime_xhtml_charset)
@@ -304,11 +284,17 @@ class r (user:Iri.t option) path =
       let%lwt () = log (fun f -> f "content_types_provided") in
       match Server_fs.kind path with
         `Dir ->
-          Wm.continue [
-            Ldp_http.mime_turtle, self#to_container_ttl ;
-            Ldp_http.mime_xmlrdf, self#to_container_xmlrdf ;
-          ] rd
-          (* FIXME: provide also simple HTML page *)
+          let as_graph = [
+              Ldp_http.mime_turtle, self#to_container_ttl ;
+              Ldp_http.mime_xmlrdf, self#to_container_xmlrdf ;
+            ]
+          in
+          let%lwt as_other =
+            Server_acl.available_container_listings user path
+            >|= List.map (fun (mime, f) -> (mime, self#to_mime f))
+          in
+          Wm.continue (as_graph @ as_other) rd
+
       | `Acl _ ->
           Wm.continue [
             Ldp_http.mime_turtle, self#to_acl_ttl ;
@@ -451,6 +437,13 @@ class r (user:Iri.t option) path =
         | Some str -> Lwt.return str
       in
       let body = `String str in
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta rd path in
+      Wm.continue body rd
+
+    method private to_mime f rd =
+      let%lwt body = f () in
+      let body =  `String body in
       let rd = { rd with Wm.Rd.resp_body = body } in
       let rd = rd_add_acl_meta rd path in
       Wm.continue body rd

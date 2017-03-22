@@ -89,3 +89,44 @@ let rights_for_path user p =
   in
   iter ~default: false p
 
+let fold_listings user iri acc basename =
+  (* FIXME: not the most efficient computation...
+     but let's keep things simple by now *)
+  let iri = Server_fs.iri_append_path iri [basename] in
+  let uri = Iri.to_uri iri in
+  let%lwt p = Server_fs.path_of_uri (Uri.of_string uri) in
+  match Server_fs.kind p with
+    `File ->
+      begin
+        let%lwt rights = rights_for_path user p in
+        if has_read rights then
+          let absfile = Server_fs.path_to_filename p in
+          let%lwt mime =
+            match%lwt Server_fs.path_mime p with
+            | Some x -> Lwt.return x
+            | None -> Lwt.return (Magic_mime.lookup absfile)
+          in
+          let reader () = Lwt_io.(with_file ~mode:Input absfile read) in
+          Lwt.return ((mime, reader)::acc)
+        else
+          Lwt.return acc
+      end
+  | _  -> Lwt.return acc
+
+let available_container_listings user path =
+  match Server_fs.kind path with
+  | `Dir ->
+      begin
+        match Ocf.get Server_conf.container_listing with
+          None -> Lwt.return []
+        | Some files ->
+            let iri = Server_fs.iri path in
+            let%lwt l = Lwt_list.fold_left_s
+              (fold_listings user iri) [] files
+            in
+            let l = l @ [Server_page.mime_xhtml,
+              fun () -> Server_fs.default_container_listing path]
+            in
+            Lwt.return l
+      end
+  | _ -> Lwt.return []

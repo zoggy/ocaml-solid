@@ -4,7 +4,10 @@ let server_cert = Ocf.string ~doc:".pem file of server certificate"
   "./server-certificates/server.pem"
 
 let server_key = Ocf.string ~doc:".key file of server key"
-  "./server-certificates/server.key"
+  ("./server-certificates/server.key")
+
+let server_ca = Ocf.(option_ ~doc:"CA file of server"
+   Wrapper.string None)
 
 let port = Ocf.int ~doc: "port number to listen to" 9999
 
@@ -32,17 +35,30 @@ let global_log_level = Ocf.option
      prerr_endline (Printf.sprintf "level set to %s" (Logs.level_to_string l)))
   Ldp_log.level_wrapper (Logs.level ())
 
+let container_listing = Ocf.(option_
+   ~doc: "GET text/html on container lists content or use an existing file; \
+   null means the server will return 415, else each file will be tried and if \
+   none exists the server will build a simple HTML page."
+  (Wrapper.list Wrapper.string) (Some ["index.html";"index.xhtml"])
+  )
+
 let add_options g =
   let https =
     let g = Ocf.group in
     let g = Ocf.add g ["cert_file"] server_cert in
     let g = Ocf.add g ["key_file"] server_key in
+    let g = Ocf.add g ["ca_file"] server_ca in
     let g = Ocf.add g ["port"] port in
     g
   in
   let storage =
     let g = Ocf.group in
     let g = Ocf.add g ["root"] storage_root in
+    g
+  in
+  let ldp =
+    let g = Ocf.group in
+    let g = Ocf.add g ["container_listing"] container_listing in
     g
   in
   let log =
@@ -54,5 +70,6 @@ let add_options g =
   in
   let g = Ocf.add_group g ["https"] https in
   let g = Ocf.add_group g ["storage"] storage in
+  let g = Ocf.add_group g ["ldp"] ldp in
   let g = Ocf.add_group g ["log"] log in
   g

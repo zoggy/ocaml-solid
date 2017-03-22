@@ -329,11 +329,11 @@ let container_graph_of_dir iri dirname =
           let obj =
             let file =
               if st.Unix.st_kind = Unix.S_DIR then
-                file^"/"
+                [file;""]
               else
-                file
+                [file]
             in
-            let iri = Iri.normalize (Iri.append_path iri [file]) in
+            let iri = Iri.normalize (Iri.append_path iri file) in
             (* normalize will remove // *)
             Rdf_term.Iri iri
           in
@@ -627,3 +627,38 @@ let delete_path p =
       let%lwt () = safe_unlink (path_to_filename (acl_path p)) in
       let%lwt () = safe_unlink (path_to_filename (meta_path p)) in
       bool_of_unix_call Lwt_unix.rmdir (path_to_filename p)
+
+let default_container_listing path =
+  let open Rdf_graph in
+  let open Rdf_term in
+  let module Xh = Xtmpl_xhtml in
+  let%lwt g = create_container_graph path in
+  let iri = iri path in
+  let title_of iri =
+    let sub = Iri iri in
+    match literal_objects_of g ~sub ~pred: Rdf_dc.title with
+      lit :: _ -> lit.lit_value
+    | _ ->
+        let p = match Iri.path iri with
+            | Iri.Absolute p | Iri.Relative p -> p
+        in
+        match List.rev p with
+          [] | [""] -> ""
+        | "" :: s :: _ -> s
+        | s :: _ -> s
+  in
+  let lis =
+    let sub = Iri iri in
+    let hrefs = iri_objects_of g ~sub ~pred:Rdf_ldp.contains in
+    List.map (fun href ->
+       let title = title_of href in
+       Xh.li [Xh.a ~href:(Iri.to_string href) [Xtmpl_rewrite.cdata title]])
+      hrefs
+  in
+  let title = title_of iri in
+  let contents =
+    [ Xh.h1 [Xtmpl_rewrite.cdata title] ;
+      Xh.ul lis ;
+    ]
+  in
+  Lwt.return (Server_page.page title contents)

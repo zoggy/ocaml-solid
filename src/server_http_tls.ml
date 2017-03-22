@@ -24,11 +24,17 @@ let get_cert_info cert =
 (* FIXME: add user authentication with cookies here *)
 
 let server http_handler =
-  X509_lwt.private_of_pems
-    ~cert:(Ocf.get Server_conf.server_cert)
-    ~priv_key:(Ocf.get Server_conf.server_key)
-    >>= fun cert ->
-    X509_lwt.authenticator `No_authentication_I'M_STUPID >>= fun authenticator ->
+  let%lwt cert =
+    X509_lwt.private_of_pems
+      ~cert:(Ocf.get Server_conf.server_cert)
+      ~priv_key:(Ocf.get Server_conf.server_key)
+  in
+  let%lwt authenticator =
+    X509_lwt.authenticator
+     (match Ocf.get Server_conf.server_ca with
+         None -> `No_authentication_I'M_STUPID
+       | Some file -> `Ca_file file)       
+  in
   let tls_server = Tls.Config.server
     ~reneg:true
     ~certificates: (`Single cert)

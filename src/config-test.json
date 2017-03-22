@@ -4,6 +4,9 @@
     "root": "www"
   },
   "log": { "global": "debug" },
+  "ldp": {
+    "container_listing": [ "index.html", "index.xhtml" ]
+  },
   "https": {
     "port": "port number to listen to",
     "port": 9999,
