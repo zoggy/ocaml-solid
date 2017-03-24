@@ -89,12 +89,10 @@ let rights_for_path user p =
   in
   iter ~default: false p
 
-let fold_listings user iri acc basename =
+let fold_listings user path acc basename =
   (* FIXME: not the most efficient computation...
      but let's keep things simple by now *)
-  let iri = Server_fs.iri_append_path iri [basename] in
-  let uri = Iri.to_uri iri in
-  let%lwt p = Server_fs.path_of_uri (Uri.of_string uri) in
+  let%lwt p = Server_fs.append_rel path [basename] in
   match Server_fs.kind p with
     `File ->
       begin
@@ -120,9 +118,8 @@ let available_container_listings user path =
         match Ocf.get Server_conf.container_listing with
           None -> Lwt.return []
         | Some files ->
-            let iri = Server_fs.iri path in
             let%lwt l = Lwt_list.fold_left_s
-              (fold_listings user iri) [] files
+              (fold_listings user path) [] files
             in
             let l = l @ [Server_page.mime_xhtml,
               fun () -> Server_fs.default_container_listing path]

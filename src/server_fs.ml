@@ -74,31 +74,36 @@ let debug_p p =
       (Iri.to_string p.root_iri) p.root_dir
       (List.fold_left Filename.concat "/" p.rel))
 
+let mk_path root_iri root_dir rel =
+  let%lwt kind =
+    let fname = List.fold_left Filename.concat root_dir rel in
+    get_kind fname
+  in
+  let rel =
+    let chop_ext =
+      match kind with
+        `Acl _ -> Some acl_suffix
+      | `Meta _ -> Some meta_suffix
+          | _ -> None
+    in
+    match chop_ext with
+      None -> rel
+    | Some ext ->
+        match List.rev rel with
+          [] -> assert false
+        | h :: q ->
+            match Filename.chop_suffix h ext with
+            | "" -> List.rev q
+            | str -> List.rev (str :: q)
+  in
+  let p = { root_iri ; root_dir ; rel ; kind ; mime = None } in
+  let%lwt () = debug_p p in
+  Lwt.return p
+
 let path_of_uri uri =
   match Server_fs_route.route (Ocf.get Server_conf.storage_root) uri with
   | None -> Ldp_types.fail (Missing_route uri)
   | Some (root_iri_path, root_dir, rel, ro) ->
-      let%lwt kind =
-        let fname = List.fold_left Filename.concat root_dir rel in
-        get_kind fname
-      in
-      let rel =
-        let chop_ext =
-          match kind with
-            `Acl _ -> Some acl_suffix
-          | `Meta _ -> Some meta_suffix
-          | _ -> None
-        in
-        match chop_ext with
-          None -> rel
-        | Some ext ->
-            match List.rev rel with
-              [] -> assert false
-            | h :: q ->
-                match Filename.chop_suffix h ext with
-                | "" -> List.rev q
-                | str -> List.rev (str :: q)
-      in
       let root_iri =
         Iri.iri ?scheme:(Uri.scheme uri)
           ?user:(Uri.user uri)
@@ -106,9 +111,9 @@ let path_of_uri uri =
           ?port:(Uri.port uri)
           ~path:(Iri.Absolute root_iri_path) ()
       in
-      let p = { root_iri ; root_dir ; rel ; kind ; mime = None } in
-      let%lwt () = debug_p p in
-      Lwt.return p
+      mk_path root_iri root_dir rel
+
+let append_rel p strings = mk_path p.root_iri p.root_dir (p.rel @ strings)
 
 let path_to_filename p =
   let fname = List.fold_left Filename.concat p.root_dir p.rel in
