@@ -149,6 +149,7 @@ let route root uri =
   match !rules with
     None -> Ldp_types.error Rules_not_initialized
   | Some rules ->
+      Server_log._debug (fun f -> f "%s" "applying routing rules");
       let path = Uri.path uri in
       let path = split_path path in
       let path = List.map Uri.pct_decode path in

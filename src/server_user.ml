@@ -175,7 +175,9 @@ let mk_templates root_path ?(name="Your name")
       re_var "cert-label", cert_label ;
     ]
   in
+  let%lwt () = Server_log._debug_lwt (fun f -> f "%s" "before replace_var") in
   let replace_var str (re, by) = Re.replace_string re ~all:true ~by str in
+  let%lwt () = Server_log._debug_lwt (fun f -> f "%s" "after replace_var") in
   let mk (uri, mime, template) =
     let content = List.fold_left replace_var template vars in
     let%lwt path = Server_fs.path_of_uri (Uri.of_string uri) in

@@ -49,12 +49,12 @@ let main () =
   | exception Arg.Bad msg -> Lwt.fail_with msg
   | exception Ocf.Error e -> Lwt.fail_with (Ocf.string_of_error e)
   | () ->
+      Server_fs_route.init (Ocf.get Server_conf.storage_rules) ;
       match !mode with
       | Add_user login ->
           Server_user.add ?name:!name  ?cert_label:!cert_label
             ?pem:!pem ?webid:!webid ~profile:!profile login
       | Server ->
-          Server_fs_route.init (Ocf.get Server_conf.storage_rules) ;
           let%lwt () = Server_auth.init_http ~curl: !use_curl in
           let%lwt () = Server_log._app_lwt
             (fun m -> m "Using documents from %s" (Ocf.get Server_conf.storage_root))

@@ -75,6 +75,11 @@ let debug_p p =
       (List.fold_left Filename.concat "/" p.rel))
 
 let mk_path root_iri root_dir rel =
+  let%lwt () = Server_log._debug_lwt
+    (fun f -> f "mk_path: root_iri=%S, root_dir=%s, rel=%S"
+       (Iri.to_string root_iri) root_dir (String.concat "|" rel)
+     )
+  in
   let%lwt kind =
     let fname = List.fold_left Filename.concat root_dir rel in
     get_kind fname
@@ -84,7 +89,7 @@ let mk_path root_iri root_dir rel =
       match kind with
         `Acl _ -> Some acl_suffix
       | `Meta _ -> Some meta_suffix
-          | _ -> None
+      | _ -> None
     in
     match chop_ext with
       None -> rel
