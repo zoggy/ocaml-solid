@@ -68,7 +68,7 @@ let iri_of_cert cert =
 
 let verify_webid ~exp ~modu webid g =
   let exp = Rdf_term.term_of_literal_string
-    ~typ: (Rdf_rdf.xsd_ "int") (* or integer ? but databox use int *)
+    ~typ: (Rdf_rdf.xsd_"integer")
     (Z.to_string  exp)
   in
   let modu = Rdf_term.term_of_literal_string
@@ -78,7 +78,9 @@ let verify_webid ~exp ~modu webid g =
   let q = Printf.sprintf
     "PREFIX : <http://www.w3.org/ns/auth/cert#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-ASK { %s :key [ :modulus %s ; :exponent %s ; ] .}"
+ASK { %s :key [ :modulus %s ; :exponent ?exp ; ] .
+      FILTER (?exp = %s)
+    }"
     Rdf_term.(string_of_term (Iri webid))
     (Rdf_term.string_of_term modu)
     (Rdf_term.string_of_term exp)
