@@ -1,7 +1,13 @@
 {
   "storage": {
     "root": "root directory to store served documents",
-    "root": "www"
+    "root": "www",
+    "rules":[
+      { host: "^([^.]+).good-eris.net", root: "home/{1}" },
+      { path: "^/~([a-zA-Z][a-zA-Z0-9]+)", root: "home/{1}" },
+      { host: "www\\.oranadoz\\.net", root: "./www-oranadoz", read_only:true },
+      { root: "documents" }
+    ]
   },
   "log": { "global": "debug" },
   "ldp": {

@@ -73,7 +73,7 @@ PACKAGES=cohttp.lwt,lwt.ppx,rdf,ppx_sexp_conv,ocf,ocf.ppx,logs.lwt,logs.fmt,fmt
 JS_PACKAGES=cohttp.js,js_of_ocaml.ppx
 TLS_PACKAGES=tls.lwt,tls
 CURL_PACKAGES=curl.lwt,curl
-SERVER_PACKAGES=ppx_blob,webmachine,websocket,xtmpl,rdf.ppx
+SERVER_PACKAGES=ppx_blob,webmachine,websocket,xtmpl,rdf.ppx,re.pcre
 
 # Finally create the master.Makefile.in
 ACFILES="master.Makefile src/META"

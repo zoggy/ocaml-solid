@@ -123,6 +123,7 @@ SERVER_CMXFILES=\
 	server_auth.cmx \
 	server_http_tls.cmx \
 	server_page.cmx \
+	server_fs_route.cmx \
 	server_fs.cmx \
 	server_acl.cmx \
 	server_webmachine.cmx \

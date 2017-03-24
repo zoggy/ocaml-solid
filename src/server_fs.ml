@@ -14,30 +14,6 @@ let string_of_file ?(on_err=fun _ -> Lwt.return_none) filename =
     Lwt.return_some str
   with e -> on_err e
 
-let split_string ?(keep_empty=false) s chars =
-  let re =
-    Re.(
-     let re = alt (List.map char chars) in
-     let re = if keep_empty then re else rep1 re in
-     compile re
-    )
-  in
-  Re.split re s
-
-let normalize =
-  let rec iter acc = function
-    [] -> List.rev acc
-  | "." :: q -> iter acc q
-  | ".." :: q ->
-      begin
-        match acc with
-          [] -> iter acc q
-        | _ :: acc -> iter acc q
-      end
-  | h :: q -> iter (h :: acc) q
-  in
-  iter []
-
 type file_dir = [`File | `Dir | `Unknown]
 type kind = [file_dir | `Acl of file_dir | `Meta of file_dir]
 type path =
@@ -52,6 +28,7 @@ type path =
 type Ldp_types.error +=
   | Not_a_container of path
   | Invalid_dirname of string
+  | Missing_route of Uri.t
 
 let acl_suffix = ",acl"
 let meta_suffix = ",meta"
@@ -91,50 +68,47 @@ let get_kind fname =
   | Some true -> Lwt.return `File
   | Some false -> Lwt.return `Dir
 
+let debug_p p =
+  Server_log._debug_lwt
+    (fun f -> f "Path: root_iri=%s\nroot_dir=%s\nrel=%s"
+      (Iri.to_string p.root_iri) p.root_dir
+      (List.fold_left Filename.concat "/" p.rel))
+
 let path_of_uri uri =
-  let path = Uri.path uri in
-  let path = split_string path ['/'] in
-  let path = List.map Uri.pct_decode path in
-  let path = normalize path in
-  let (root_iri_path, root_dir, rel) =
-    match path with
-    | [] -> ([], documents (), path)
-    | h :: q ->
-        let len = String.length h in
-        if len > 0 && String.get h 0 = '~' then
-          ([h], Filename.concat (homes()) (String.sub h 1 (len - 1)), q)
-        else
-          ([], documents(), path)
-  in
-  let%lwt kind =
-    let fname = List.fold_left Filename.concat root_dir rel in
-    get_kind fname
-  in
-  let rel =
-    let chop_ext =
-      match kind with
-        `Acl _ -> Some acl_suffix
-      | `Meta _ -> Some meta_suffix
-      | _ -> None
-    in
-    match chop_ext with
-      None -> rel
-    | Some ext ->
-        match List.rev rel with
-          [] -> assert false
-        | h :: q ->
-            match Filename.chop_suffix h ext with
-            | "" -> List.rev q
-            | str -> List.rev (str :: q)
-  in
-  let root_iri =
-    Iri.iri ?scheme:(Uri.scheme uri)
-      ?user:(Uri.user uri)
-      ?host:(Uri.host uri)
-      ?port:(Uri.port uri)
-      ~path:(Iri.Absolute root_iri_path) ()
-  in
-  Lwt.return { root_iri ; root_dir ; rel ; kind ; mime = None }
+  match Server_fs_route.route (Ocf.get Server_conf.storage_root) uri with
+  | None -> Ldp_types.fail (Missing_route uri)
+  | Some (root_iri_path, root_dir, rel, ro) ->
+      let%lwt kind =
+        let fname = List.fold_left Filename.concat root_dir rel in
+        get_kind fname
+      in
+      let rel =
+        let chop_ext =
+          match kind with
+            `Acl _ -> Some acl_suffix
+          | `Meta _ -> Some meta_suffix
+          | _ -> None
+        in
+        match chop_ext with
+          None -> rel
+        | Some ext ->
+            match List.rev rel with
+              [] -> assert false
+            | h :: q ->
+                match Filename.chop_suffix h ext with
+                | "" -> List.rev q
+                | str -> List.rev (str :: q)
+      in
+      let root_iri =
+        Iri.iri ?scheme:(Uri.scheme uri)
+          ?user:(Uri.user uri)
+          ?host:(Uri.host uri)
+          ?port:(Uri.port uri)
+          ~path:(Iri.Absolute root_iri_path) ()
+      in
+      let p = { root_iri ; root_dir ; rel ; kind ; mime = None } in
+      let%lwt () = debug_p p in
+      Lwt.return p
 
 let path_to_filename p =
   let fname = List.fold_left Filename.concat p.root_dir p.rel in
@@ -185,6 +159,8 @@ let () = Ldp_types.register_string_of_error
          Printf.sprintf "Not a container: %s" (Iri.to_string (iri path))
      | Invalid_dirname s ->
          Printf.sprintf "Invalid directory name: %s" s
+     | Missing_route uri ->
+         Printf.sprintf "Missing FS route for %s" (Uri.to_string uri)
      | e -> fb e
   )
 

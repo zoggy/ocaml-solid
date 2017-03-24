@@ -29,6 +29,17 @@ let storage_root = Ocf.option filename_wrapper
   ~doc:"root directory to store served documents"
   "www"
 
+type fs_map_rule = {
+    host : string option [@ocf Ocf.Wrapper.(option string), None] ;
+    path : string option [@ocf Ocf.Wrapper.(option string), None] ;
+    root : string [@ocf Ocf.Wrapper.string, ""] ;
+    read_only : bool [@ocf Ocf.Wrapper.bool, false] ;
+  } [@@ocf]
+
+let storage_rules = Ocf.list fs_map_rule_wrapper
+  ~doc:"mappings from uri to file system"
+  []
+
 let () = Logs.set_level ~all: true (Some Logs.Warning)
 let global_log_level = Ocf.option
   ~cb: (fun l -> Logs.set_level ~all: true l;
@@ -54,6 +65,7 @@ let add_options g =
   let storage =
     let g = Ocf.group in
     let g = Ocf.add g ["root"] storage_root in
+    let g = Ocf.add g ["rules"] storage_rules in
     g
   in
   let ldp =

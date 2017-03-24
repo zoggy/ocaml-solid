@@ -466,17 +466,21 @@ let http_handler ?user request body =
   let%lwt () = log (fun f ->
        f "HTTP query: %s" (Uri.to_string uri))
   in
-  let%lwt path = Server_fs.path_of_uri uri in
-  let%lwt () =
-    log (fun f ->
-       f "Iri: %s\nFilename: %s"
-         (Iri.to_string (Server_fs.iri path))
-         (Server_fs.path_to_filename path))
+  let%lwt routes =
+    match%lwt Server_fs.path_of_uri uri with
+    | exception e ->
+        let%lwt () = log (fun f -> f "%s" (Printexc.to_string e)) in
+        Lwt.return []
+    | path ->  
+        let%lwt () =
+          log (fun f ->
+             f "Iri: %s\nFilename: %s"
+               (Iri.to_string (Server_fs.iri path))
+               (Server_fs.path_to_filename path))
+        in
+        Lwt.return [ "*", fun () -> new r user path ]
   in
   let open Cohttp in
-  let routes =
-    [ "*", fun () -> new r user path ]
-  in
   Wm.dispatch' routes ~body ~request
   >|= begin function
     | None        -> (`Not_found, Header.init (), `String "Not found", [])
