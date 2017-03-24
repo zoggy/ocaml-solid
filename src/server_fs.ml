@@ -116,7 +116,8 @@ let path_of_uri uri =
           ?port:(Uri.port uri)
           ~path:(Iri.Absolute root_iri_path) ()
       in
-      mk_path root_iri root_dir rel
+      let%lwt p = mk_path root_iri root_dir rel in
+      Lwt.return (p, ro)
 
 let append_rel p strings = mk_path p.root_iri p.root_dir (p.rel @ strings)
 

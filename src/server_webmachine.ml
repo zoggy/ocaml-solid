@@ -128,7 +128,7 @@ let graph_of_request rd path =
       end
   | _ -> Lwt.return_none
 
-class r (user:Iri.t option) path =
+class r ?(read_only=false) (user:Iri.t option) path =
   let write_body rd oc =
     Cohttp_lwt_body.write_body
       (Lwt_io.write oc) rd.Wm.Rd.req_body
@@ -183,10 +183,13 @@ class r (user:Iri.t option) path =
         see also https://github.com/solid/solid/issues/45 *)
 
     method allowed_methods rd =
-      Wm.continue [
-        `GET ; `OPTIONS ; `HEAD ;
-        `POST ;`PUT ; `DELETE ; `PATCH
-      ] rd
+      let mets = [ `GET ; `OPTIONS ; `HEAD ] in
+      let mets =
+        if read_only
+        then mets
+        else mets @ [`POST ;`PUT ; `DELETE ; `PATCH ]
+      in
+      Wm.continue mets rd
 
     (*method is_authorized rd = Wm.continue `Authorized rd*)
 
@@ -471,14 +474,14 @@ let http_handler ?user request body =
     | exception e ->
         let%lwt () = log (fun f -> f "%s" (Printexc.to_string e)) in
         Lwt.return []
-    | path ->  
+    | (path,read_only) ->
         let%lwt () =
           log (fun f ->
              f "Iri: %s\nFilename: %s"
                (Iri.to_string (Server_fs.iri path))
                (Server_fs.path_to_filename path))
         in
-        Lwt.return [ "*", fun () -> new r user path ]
+        Lwt.return [ "*", fun () -> new r ~read_only user path ]
   in
   let open Cohttp in
   Wm.dispatch' routes ~body ~request
