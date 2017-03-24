@@ -77,6 +77,8 @@ let () =
         | Unix.Unix_error (e,s1,s2) ->
             Printf.sprintf "%s %s: %s"
               (Unix.error_message e) s2 s1
+        | Ldp_types.Error e ->
+            Ldp_types.string_of_error e
       in
       prerr_endline msg ;
       exit 1
