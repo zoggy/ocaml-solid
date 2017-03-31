@@ -66,8 +66,8 @@ let storage_rules = Ocf.list fs_map_rule_wrapper
 
 let () = Logs.set_level ~all: true (Some Logs.Warning)
 let global_log_level = Ocf.option
-  ~cb: (fun l -> Logs.set_level ~all: true l;
-     prerr_endline (Printf.sprintf "level set to %s" (Logs.level_to_string l)))
+  ~cb: (fun l -> Logs.set_level ~all: true l)
+(*     prerr_endline (Printf.sprintf "level set to %s" (Logs.level_to_string l)))*)
   Ldp_log.level_wrapper (Logs.level ())
 
 let container_listing = Ocf.(option_

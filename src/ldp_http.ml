@@ -179,6 +179,7 @@ module type Http =
     val put : ?data:string -> ?mime:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_non_rdf :
       ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
+    val patch_with_query : Iri.t -> string -> unit Lwt.t
     val patch :
       ?del:Rdf_graph.graph -> ?ins:Rdf_graph.graph -> Iri.t -> unit Lwt.t
     val delete : Iri.t -> unit Lwt.t
@@ -454,6 +455,15 @@ module Cached_http (C:Cache) (P:Requests) =
     let post_non_rdf ?data ?mime iri =
       put ?data ?mime ~typ: Rdf_ldp.c_NonRDFSource iri
 
+    let patch_with_query iri query =
+      let body = `String query in
+      let headers = Header.init_with "Content-type" mime_sparql_update in
+      P.call ~headers ~body `PATCH iri
+        >>= fun (resp, body) ->
+        match Code.code_of_status resp.Response.status with
+        | 200 | 201 -> Lwt.return_unit
+        | n -> error (Patch_error (n, iri))
+
     let patch ?del ?ins iri =
       let b = Buffer.create 256 in
       (match del with
@@ -465,19 +475,13 @@ module Cached_http (C:Cache) (P:Requests) =
       (match ins with
          None -> ()
        | Some g ->
-           Printf.bprintf b "INSERT DATA { %s }\n"
+           Printf.bprintf b "%sINSERT DATA { %s }\n"
+             (match del with None -> "" | Some _ -> ";\n")
              (Rdf_ttl.to_string g)
       );
       match Buffer.contents b with
         "" -> Lwt.return_unit
-      | query ->
-          let body = `String query in
-          let headers = Header.init_with "Content-type" "application/sparql-update" in
-          P.call ~headers ~body `PATCH iri
-          >>= fun (resp, body) ->
-              match Code.code_of_status resp.Response.status with
-              | 200 | 201 -> Lwt.return_unit
-              | n -> error (Patch_error (n, iri))
+      | query -> patch_with_query iri query
 
     let delete iri =
       P.call `DELETE iri

@@ -139,6 +139,7 @@ module type Http =
     val put : ?data:string -> ?mime:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_non_rdf :
       ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
+    val patch_with_query : Iri.t -> string -> unit Lwt.t
     val patch :
       ?del:Rdf_graph.graph -> ?ins:Rdf_graph.graph -> Iri.t -> unit Lwt.t
     val delete : Iri.t -> unit Lwt.t

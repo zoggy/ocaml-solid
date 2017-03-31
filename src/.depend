@@ -34,8 +34,8 @@ server_fs.cmo : server_page.cmo server_log.cmi server_fs_route.cmo \
     server_conf.cmo ldp_types.cmi ldp_http.cmi
 server_fs.cmx : server_page.cmx server_log.cmx server_fs_route.cmx \
     server_conf.cmx ldp_types.cmx ldp_http.cmx
-server_fs_route.cmo : server_log.cmi ldp_types.cmi
-server_fs_route.cmx : server_log.cmx ldp_types.cmx
+server_fs_route.cmo : server_log.cmi server_conf.cmo ldp_types.cmi
+server_fs_route.cmx : server_log.cmx server_conf.cmx ldp_types.cmx
 server_http_tls.cmo : server_log.cmi server_conf.cmo server_auth.cmo \
     cohttp_tls.cmo
 server_http_tls.cmx : server_log.cmx server_conf.cmx server_auth.cmx \
@@ -51,9 +51,9 @@ server_page.cmx :
 server_user.cmo : server_log.cmi server_fs.cmo server_conf.cmo ldp_http.cmi
 server_user.cmx : server_log.cmx server_fs.cmx server_conf.cmx ldp_http.cmx
 server_webmachine.cmo : server_page.cmo server_log.cmi server_fs.cmo \
-    server_acl.cmo ldp_http.cmi cohttp_tls.cmo
+    server_acl.cmo ldp_types.cmi ldp_http.cmi cohttp_tls.cmo
 server_webmachine.cmx : server_page.cmx server_log.cmx server_fs.cmx \
-    server_acl.cmx ldp_http.cmx cohttp_tls.cmx
+    server_acl.cmx ldp_types.cmx ldp_http.cmx cohttp_tls.cmx
 solid_profile.cmo : ldp_types.cmi ldp_http.cmi solid_profile.cmi
 solid_profile.cmx : ldp_types.cmx ldp_http.cmx solid_profile.cmi
 solid_tool_common.cmo : ldp_types.cmi ldp_tls.cmi ldp_curl.cmi \

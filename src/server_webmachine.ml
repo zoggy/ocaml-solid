@@ -191,7 +191,7 @@ let apply_patch path str =
         end
     | _ -> Lwt.return path
   in
-  let%lwt graph = 
+  let%lwt graph =
     match%lwt Server_fs.read_path_graph graph_path with
       None -> Lwt.return (Rdf_graph.open_graph (Server_fs.iri graph_path))
     | Some g -> Lwt.return g
@@ -256,12 +256,22 @@ class r ?(read_only=false) (user:Iri.t option) path =
     (* method options rd : ((string * string) list, 'body) op
         see also https://github.com/solid/solid/issues/45 *)
 
+    method known_methods rd =
+      Wm.continue
+        [ `GET ; `OPTIONS ; `HEAD; `POST ;`PUT ; `DELETE ; `PATCH ]
+        rd
+
     method allowed_methods rd =
       let mets = [ `GET ; `OPTIONS ; `HEAD ] in
       let mets =
         if read_only
         then mets
         else mets @ [`POST ;`PUT ; `DELETE ; `PATCH ]
+      in
+      let%lwt () = Server_log._debug_lwt
+        (fun f -> f "Allowed methods: %s"
+          (String.concat ", "
+            (List.map Cohttp.Code.string_of_method mets)))
       in
       Wm.continue mets rd
 
@@ -431,6 +441,9 @@ class r ?(read_only=false) (user:Iri.t option) path =
       | _ -> Wm.continue [] rd
 
     method private process_patch rd =
+      let%lwt () = Server_log._debug_lwt
+        (fun f -> f "processing PATCH")
+      in
       let%lwt str = Cohttp_lwt_body.to_string rd.Wm.Rd.req_body in
       try
         let%lwt b = apply_patch path str in
