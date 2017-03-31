@@ -64,7 +64,7 @@ let map_opt f = function None -> None | Some x -> Some (f x)
 let do_opt f = function None -> () | Some x -> f x
 
 let mime_turtle = "text/turtle"
-let mime_xmlrdf = "text/xml+rdf"
+let mime_xmlrdf = "application/rdf+xml"
 let mime_sparql_update = "application/sparql-update"
 let mime_text = "text/plain"
 

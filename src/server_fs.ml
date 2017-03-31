@@ -26,17 +26,17 @@
 
 open Lwt.Infix
 
-let homes () =
-  Filename.concat (Ocf.get Server_conf.storage_root) "home"
-
-let documents () =
-  Filename.concat (Ocf.get Server_conf.storage_root) "documents"
-
 let string_of_file ?(on_err=fun _ -> Lwt.return_none) filename =
   try%lwt
     let%lwt str = Lwt_io.(with_file Input filename read) in
     Lwt.return_some str
   with e -> on_err e
+
+let lookup_mime filename =
+  if Filename.check_suffix filename ".ttl" then
+    Ldp_http.mime_turtle
+  else
+    Magic_mime.lookup filename
 
 type file_dir = [`File | `Dir | `Unknown]
 type kind = [file_dir | `Acl of file_dir | `Meta of file_dir]
@@ -273,17 +273,24 @@ let path_mime p =
     Some _ -> Lwt.return p.mime
   | None ->
       let meta = meta_path p in
-      match%lwt read_path_graph meta with
-        None -> Lwt.return_none
-      | Some g ->
-          let open Rdf_term in
-          match Rdf_graph.(literal_objects_of g
-             ~sub:(Iri (iri p)) ~pred:Rdf_dc.format)
-          with
-            [] -> Lwt.return_none (* FIXME: try to guess with magic-mime ? *)
-          | lit :: _ ->
-              p.mime <- Some lit.lit_value ;
-              Lwt.return (Some lit.lit_value)
+      let%lwt mime =
+        match%lwt read_path_graph meta with
+          None -> Lwt.return_none
+        | Some g ->
+            let open Rdf_term in
+            match Rdf_graph.(literal_objects_of g
+               ~sub:(Iri (iri p)) ~pred:Rdf_dc.format)
+            with
+              [] -> Lwt.return_none
+            | lit :: _ -> Lwt.return_some lit.lit_value
+      in
+      let mime =
+        match mime with
+          None -> lookup_mime (path_to_filename p)
+        | Some m -> m
+      in
+      p.mime <- Some mime;
+      Lwt.return_some mime
 
 (*
 let iri_parent_path =

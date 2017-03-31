@@ -142,7 +142,7 @@ let fold_listings user path acc basename =
           let%lwt mime =
             match%lwt Server_fs.path_mime p with
             | Some x -> Lwt.return x
-            | None -> Lwt.return (Magic_mime.lookup absfile)
+            | None -> Lwt.return (Server_fs.lookup_mime absfile)
           in
           let reader () = Lwt_io.(with_file ~mode:Input absfile read) in
           Lwt.return ((mime, reader)::acc)
