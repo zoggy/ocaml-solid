@@ -331,9 +331,13 @@ let parent p =
   | _, (`Acl `Dir | `Meta `Dir) ->
       Lwt.return_some { p with kind = `Dir ; mime = None }
 
-let container_graph_of_dir iri dirname =
-  let g = Rdf_graph.open_graph iri in
-  let sub = Rdf_term.Iri iri in
+let container_graph_of_dir base_path dirname can_read =
+  (* List only items the user has read access, waiting for
+     more precise authorizations; see https://github.com/solid/solid/issues/29
+     *)
+  let base_iri = iri base_path in
+  let g = Rdf_graph.open_graph base_iri in
+  let sub = Rdf_term.Iri base_iri in
   let pred_contains = Rdf_ldp.contains in
   let add_file g file =
     if file = Filename.current_dir_name
@@ -350,20 +354,20 @@ let container_graph_of_dir iri dirname =
             (fun m -> m "%s: %s" absname (Printexc.to_string e))
           in
           Lwt.return_unit
-      | { Unix.st_kind = Unix.S_REG | Unix.S_DIR } as st ->
-          let obj =
-            let file =
-              if st.Unix.st_kind = Unix.S_DIR then
-                [file;""]
-              else
-                [file]
-            in
-            let iri = Iri.normalize (Iri.append_path iri file) in
-            (* normalize will remove // *)
-            Rdf_term.Iri iri
-          in
-          g.Rdf_graph.add_triple ~sub ~pred: pred_contains ~obj;
-          Lwt.return_unit
+      | { Unix.st_kind = Unix.S_REG | Unix.S_DIR } ->
+          let%lwt path_item = append_rel base_path [file] in
+          if%lwt can_read path_item then
+            begin
+              let iri_item = iri path_item in
+              let%lwt () = Server_log._debug_lwt
+                (fun f -> f "user can read %s" (Iri.to_string iri_item))
+              in
+              let obj = Rdf_term.Iri iri_item in
+              g.Rdf_graph.add_triple ~sub ~pred: pred_contains ~obj;
+              Lwt.return_unit
+            end
+          else
+            Lwt.return_unit
       | _ -> Lwt.return_unit
   in
   try%lwt
@@ -381,9 +385,9 @@ let container_graph_of_dir iri dirname =
       in
       Lwt.return g
 
-let create_container_graph p =
+let create_container_graph p can_read =
   match p.kind with
-    `Dir -> container_graph_of_dir (iri p) (path_to_filename p)
+    `Dir -> container_graph_of_dir p (path_to_filename p) can_read
   | _ -> assert false
 
 let path_is_container path =
@@ -653,11 +657,11 @@ let delete_path p =
       let%lwt () = safe_unlink (path_to_filename (meta_path p)) in
       bool_of_unix_call Lwt_unix.rmdir (path_to_filename p)
 
-let default_container_listing path =
+let default_container_listing path can_read =
   let open Rdf_graph in
   let open Rdf_term in
   let module Xh = Xtmpl_xhtml in
-  let%lwt g = create_container_graph path in
+  let%lwt g = create_container_graph path can_read in
   let iri = iri path in
   let title_of iri =
     let sub = Iri iri in

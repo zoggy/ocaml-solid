@@ -256,22 +256,31 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
     (* method options rd : ((string * string) list, 'body) op
         see also https://github.com/solid/solid/issues/45 *)
 
+    val mutable allowed_methods = []
+
     method known_methods rd =
       Wm.continue
         [ `GET ; `OPTIONS ; `HEAD; `POST ;`PUT ; `DELETE ; `PATCH ]
         rd
 
     method allowed_methods rd =
-      let mets = [ `GET ; `OPTIONS ; `HEAD ] in
-      let mets =
-        if read_only
-        then mets
-        else mets @ [`POST ;`PUT ; `DELETE ; `PATCH ]
-      in
-      let%lwt () = Server_log._debug_lwt
-        (fun f -> f "Allowed methods: %s"
-          (String.concat ", "
-            (List.map Cohttp.Code.string_of_method mets)))
+      let%lwt mets =
+        match allowed_methods with
+          [] ->
+            let mets = [ `GET ; `OPTIONS ; `HEAD ] in
+            let mets =
+              if read_only
+              then mets
+              else mets @ [`POST ;`PUT ; `DELETE ; `PATCH ]
+            in
+            let%lwt () = Server_log._debug_lwt
+              (fun f -> f "Allowed methods: %s"
+                 (String.concat ", "
+                  (List.map Cohttp.Code.string_of_method mets)))
+            in
+            allowed_methods <- mets ;
+            Lwt.return mets
+        | l -> Lwt.return l
       in
       Wm.continue mets rd
 
@@ -511,12 +520,14 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
       Wm.continue body rd
 
     method private to_container_ttl rd =
-      let%lwt g = Server_fs.create_container_graph path in
+      let can_read p = Server_acl.(rights_for_path user p >|= has_read) in
+      let%lwt g = Server_fs.create_container_graph path can_read in
       let body = `String (Rdf_ttl.to_string ~compact: true g) in
       self#to_container body rd
 
     method private to_container_xmlrdf rd =
-      let%lwt g = Server_fs.create_container_graph path in
+      let can_read p = Server_acl.(rights_for_path user p >|= has_read) in
+      let%lwt g = Server_fs.create_container_graph path can_read in
       let body = `String (Rdf_xml.to_string g) in
       self#to_container body rd
 
@@ -589,13 +600,29 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
       Wm.continue body rd
 
     method finish_request rd =
+      let module H = Cohttp.Header in
       let rd =
         Wm.Rd.with_resp_headers (fun h ->
-           let h = Cohttp.Header.add h "Access-Control-Allow-Origin" "*" in
+           let h = H.add h "Access-Control-Allow-Origin" "*" in
+           let h = H.add h "Access-Control-Allow-Credentials" "true" in
+           let h = H.add h
+             "Access-Control-Expose-Headers"
+               "User, Location, Link, Vary, Last-Modified, Content-Length, \
+                 Accept-Patch, Accept-Post, Allow"
+           in
+           let h =
+             match Server_fs.kind path with
+               `Dir -> H.add h "Accept-Post" "*/*"
+             | _ -> h
+           in
+           let h = H.add h "Accept-Patch" Ldp_http.mime_sparql_update in
+           let h = H.add_unless_exists h "Allow"
+             (String.concat "," (List.map Cohttp.Code.string_of_method allowed_methods))
+           in
            let h =
              match user with
                None -> h
-             | Some iri  -> Cohttp.Header.add h "user" (Iri.to_string iri)
+             | Some iri  -> H.add h "user" (Iri.to_string iri)
            in
            h
         )

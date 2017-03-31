@@ -24,6 +24,7 @@
 
 (** *)
 
+open Lwt.Infix
 open Rdf_acl.Open
 open Rdf_graph
 open Rdf_term
@@ -130,8 +131,6 @@ let rights_for_path user p =
   iter ~default: false p
 
 let fold_listings user path acc basename =
-  (* FIXME: not the most efficient computation...
-     but let's keep things simple by now *)
   let%lwt p = Server_fs.append_rel path [basename] in
   match Server_fs.kind p with
     `File ->
@@ -161,8 +160,9 @@ let available_container_listings user path =
             let%lwt l = Lwt_list.fold_left_s
               (fold_listings user path) [] files
             in
+            let can_read p = rights_for_path user p >|= has_read in
             let l = l @ [Server_page.mime_xhtml,
-              fun () -> Server_fs.default_container_listing path]
+              fun () -> Server_fs.default_container_listing path can_read]
             in
             Lwt.return l
       end
