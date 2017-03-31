@@ -287,7 +287,7 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
       let%lwt rights =
         let%lwt p =
           (* when patchin containers or non (xml/rdf or turtle),
-             cmopute the right on .meta path instead of path *)
+             compute the right on ,meta path instead of path *)
           match real_meth with
           | `PATCH -> path_to_patch path
           | _ -> Lwt.return path
@@ -498,18 +498,31 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
       let%lwt deleted = Server_fs.delete_path path in
       Wm.continue deleted rd
 
+    method private to_container body rd =
+      let rd = { rd with Wm.Rd.resp_body = body } in
+      let rd = rd_add_acl_meta rd path in
+      let rd = Wm.Rd.with_resp_headers (fun h ->
+           Cohttp.Header.add h "link"
+             (Printf.sprintf "<%s>; rel=\"type\""
+              (Iri.to_string Rdf_ldp.c_Container))
+        )
+        rd
+      in
+      Wm.continue body rd
+
     method private to_container_ttl rd =
       let%lwt g = Server_fs.create_container_graph path in
       let body = `String (Rdf_ttl.to_string ~compact: true g) in
-      let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta rd path in
-      Wm.continue body rd
+      self#to_container body rd
 
     method private to_container_xmlrdf rd =
       let%lwt g = Server_fs.create_container_graph path in
       let body = `String (Rdf_xml.to_string g) in
-      let rd = { rd with Wm.Rd.resp_body = body } in
+      self#to_container body rd
+
+    method private to_meta body rd =
       let rd = rd_add_acl_meta rd path in
+      let rd =  { rd with Wm.Rd.resp_body = body } in
       Wm.continue body rd
 
     method private to_meta_ttl rd =
@@ -520,9 +533,7 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
         | Some str -> Lwt.return str
       in
       let body = `String str in
-      let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta rd path in
-      Wm.continue body rd
+      self#to_meta body rd
 
     method private to_meta_xmlrdf rd =
       let%lwt body =
@@ -531,7 +542,10 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
         | Some g ->Lwt.return (Rdf_xml.to_string g)
       in
       let body = `String body in
-      let rd =  { rd with Wm.Rd.resp_body = body } in
+      self#to_meta body rd
+
+    method private to_acl body rd =
+      let rd = { rd with Wm.Rd.resp_body = body } in
       let rd = rd_add_acl_meta rd path in
       Wm.continue body rd
 
@@ -543,9 +557,7 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
         | Some str -> Lwt.return str
       in
       let body = `String str in
-      let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta rd path in
-      Wm.continue body rd
+      self#to_acl body rd
 
     method private to_acl_xmlrdf rd =
       let%lwt body =
@@ -554,9 +566,7 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
         | Some g ->Lwt.return (Rdf_xml.to_string g)
       in
       let body = `String body in
-      let rd = { rd with Wm.Rd.resp_body = body } in
-      let rd = rd_add_acl_meta rd path in
-      Wm.continue body rd
+      self#to_acl body rd
 
     method private to_raw rd =
       (* FIXME: improve this with a stream body *)
@@ -579,8 +589,16 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
       Wm.continue body rd
 
     method finish_request rd =
-      let rd = Wm.Rd.with_resp_headers (fun h ->
-         Cohttp.Header.add h "Access-Control-Allow-Origin" "*")
+      let rd =
+        Wm.Rd.with_resp_headers (fun h ->
+           let h = Cohttp.Header.add h "Access-Control-Allow-Origin" "*" in
+           let h =
+             match user with
+               None -> h
+             | Some iri  -> Cohttp.Header.add h "user" (Iri.to_string iri)
+           in
+           h
+        )
         rd
       in
       Wm.continue () rd
