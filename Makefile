@@ -1,7 +1,7 @@
 #################################################################################
-#                OCaml-RDF                                                      #
+#                OCaml-Solid                                                    #
 #                                                                               #
-#    Copyright (C) 2012-2016 Institut National de Recherche en Informatique     #
+#    Copyright (C) 2016-2017 Institut National de Recherche en Informatique     #
 #    et en Automatique. All rights reserved.                                    #
 #                                                                               #
 #    This program is free software; you can redistribute it and/or modify       #
@@ -71,9 +71,10 @@ dummy:
 # Headers
 ###########
 HEADFILES=configure.in configure \
-	master.Makefile.in Makefile src/Makefile web/Makefile \
+	master.Makefile.in Makefile src/Makefile \
 	checkocaml.ml \
-	src/*.ml src/*.mli
+	src/*.ml src/*.mli \
+	#web/Makefile \
 
 headers: dummy
 	headache -h header -c ~/.headache_config $(HEADFILES)
