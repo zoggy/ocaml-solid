@@ -17,6 +17,16 @@ let mime_xhtml = Server_page.mime_xhtml
 let mime_xhtml_charset = Server_page.mime_xhtml_charset
 let mime_html = "text/html"
 
+module SSet = Set.Make(String)
+
+let handled_rdf_mimes = SSet.of_list
+  [ Ldp_http.mime_xmlrdf ;
+    Ldp_http.mime_turtle ;
+  ]
+let is_handled_rdf_mime str =
+  let mime = Ldp_types.mime_of_content_type str in
+  SSet.mem mime handled_rdf_mimes
+
 let error_rd rd title message =
   let body = Server_page.page title [Xtmpl_rewrite.cdata message] in
   let rd = { rd with Wm.Rd.resp_body = `String body } in
@@ -96,6 +106,12 @@ let rd_set_location rd path =
     )
     rd
 
+
+let rd_set_content_type rd mime =
+  Wm.Rd.with_resp_headers
+    (fun h -> Cohttp.Header.replace h "content_type" mime)
+    rd
+
 let graph_of_request rd path =
   match content_type_of_rd rd with
     str when str = Ldp_http.mime_turtle ->
@@ -127,6 +143,40 @@ let graph_of_request rd path =
             Lwt.return_none
       end
   | _ -> Lwt.return_none
+
+let path_to_patch path =
+  match Server_fs.kind path with
+    `Acl _ | `Meta _ -> Lwt.return path
+  | `Dir | `Unknown -> Lwt.return (Server_fs.meta_path path)
+  | `File ->
+      match%lwt Server_fs.path_mime path with
+      | Some mime when is_handled_rdf_mime mime -> Lwt.return path
+      | _ -> Lwt.return (Server_fs.meta_path path)
+
+let apply_patch path str =
+  let query =  Rdf_sparql.query_from_string str in
+  let%lwt graph_path =
+    match Server_fs.kind path with
+      `Dir | `Unknown -> Lwt.return (Server_fs.meta_path path)
+    | `File ->
+        begin
+          match%lwt Server_fs.path_mime path with
+            Some mime when is_handled_rdf_mime mime ->
+              Lwt.return path
+          | _ -> Lwt.return (Server_fs.meta_path path)
+        end
+    | _ -> Lwt.return path
+  in
+  let%lwt graph = 
+    match%lwt Server_fs.read_path_graph graph_path with
+      None -> Lwt.return (Rdf_graph.open_graph (Server_fs.iri graph_path))
+    | Some g -> Lwt.return g
+  in
+  match Rdf_sparql.execute_update ~graph query with
+    Rdf_sparql.Bool b ->
+      let%lwt written = Server_fs.store_path_graph graph_path graph in
+      Lwt.return (b && written)
+  | _ -> assert false
 
 class r ?(read_only=false) (user:Iri.t option) path =
   let write_body rd oc =
@@ -200,7 +250,16 @@ class r ?(read_only=false) (user:Iri.t option) path =
       Wm.continue false rd
 
     method forbidden rd =
-      let%lwt rights = Server_acl.rights_for_path user path in
+      let%lwt rights =
+        let%lwt p =
+          (* when patchin containers or non (xml/rdf or turtle),
+             cmopute the right on .meta path instead of path *)
+          match rd.Wm.Rd.meth with
+          | `PATCH -> path_to_patch path
+          | _ -> Lwt.return path
+        in
+        Server_acl.rights_for_path user p
+      in
       let%lwt () = log
         (fun m -> m "rights %d to user %s on %s"
           rights
@@ -322,6 +381,10 @@ class r ?(read_only=false) (user:Iri.t option) path =
 
     method content_types_accepted rd =
       match rd.Wm.Rd.meth, Server_fs.kind path with
+      | `PATCH, _ ->
+          Wm.continue
+            [Ldp_http.mime_sparql_update, self#process_patch]
+            rd
       | `PUT, `Dir -> Wm.continue [] rd
       | `PUT, _ ->
           if Server_fs.is_graph_path path then
@@ -342,6 +405,30 @@ class r ?(read_only=false) (user:Iri.t option) path =
             | _ -> Wm.continue ["*/*", self#dummy_accept] rd
           end
       | _ -> Wm.continue [] rd
+
+    method private process_patch rd =
+      let%lwt str = Cohttp_lwt_body.to_string rd.Wm.Rd.req_body in
+      try
+        let%lwt b = apply_patch path str in
+        if not b then
+          Wm.respond (Cohttp.Code.code_of_status `Bad_request) rd
+        else
+          Wm.continue true rd
+      with
+        e ->
+          let (status, msg) =
+            match e with
+              Rdf_sparql.Error (Rdf_sparql.Not_implemented str) ->
+                (`Not_implemented, str)
+            | Rdf_sparql.Error e ->
+                (`Bad_request, Rdf_sparql.string_of_error e)
+            | e ->
+                (`Internal_server_error, Printexc.to_string e)
+          in
+          let body = `String msg in
+          let rd = { rd with Wm.Rd.resp_body = body } in
+          let rd = rd_set_content_type rd Ldp_http.mime_text in
+          Wm.respond (Cohttp.Code.code_of_status status) rd
 
     method private dummy_accept rd = Wm.continue true rd
     method private accept_put rd =

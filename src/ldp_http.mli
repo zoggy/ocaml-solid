@@ -17,6 +17,8 @@ val string_of_metadata : Ldp_types.meta -> string
 
 val mime_turtle : string
 val mime_xmlrdf : string
+val mime_sparql_update : string
+val mime_text : string
 
 val type_is_container : Iri.t -> bool
 

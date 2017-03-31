@@ -200,13 +200,20 @@ let remove_ext p =
               match List.rev p with
                 [] -> assert false
               |*)
+
 let ext_path (f : file_dir -> kind) p =
   match p.kind with
     (`Unknown | `Dir | `File) as x
-  | `Meta x | `Acl x -> { p with kind = f x }
+  | `Meta x | `Acl x ->
+      let kind =  f x in
+      if kind = p.kind then
+        p
+      else
+        { p with kind = f x ; mime = None }
 
 let acl_path = ext_path (fun x -> `Acl x)
 let meta_path = ext_path (fun x -> `Meta x)
+let noext_path = ext_path (fun x -> (x:>kind))
 
 let is_graph_path p =
   match p.kind with
@@ -249,7 +256,7 @@ let path_mime p =
           match Rdf_graph.(literal_objects_of g
              ~sub:(Iri (iri p)) ~pred:Rdf_dc.format)
           with
-            [] -> Lwt.return_none
+            [] -> Lwt.return_none (* FIXME: try to guess with magic-mime ? *)
           | lit :: _ ->
               p.mime <- Some lit.lit_value ;
               Lwt.return (Some lit.lit_value)

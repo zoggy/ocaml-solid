@@ -22,6 +22,8 @@ let add_control = (lor) 8
 let rem_control = (land) (lnot 8)
 let has_control r = r land 8 <> 0
 
+let all_rights = add_read (add_write (add_append (add_control no_right)))
+
 (* FIXME: acl:defautlForNew will be renamed acl:default *)
 let auths ~default g iri =
   Server_log._debug (fun m -> m "%s" (Rdf_ttl.to_string g));
@@ -64,7 +66,7 @@ let gather_rights g user acc auth =
     acc
 
 (** FIXME: we don't handle groups of agent yet *)
-(** FIXME: hand control access over ,acl *)
+(** FIXME: handle control access over ,acl *)
 let rights ~default user g iri =
   let auths = auths ~default g iri in
   let%lwt () =
@@ -79,7 +81,21 @@ let rights_for_path user p =
   let rec iter ~default p =
     let acl = Server_fs.acl_path p in
     match%lwt Server_fs.read_path_graph acl with
-    | Some g -> rights ~default user g (Server_fs.iri p)
+    | Some g ->
+        begin
+          let r = rights ~default user g (Server_fs.iri p) in
+          match Server_fs.kind p with
+            `Acl x ->
+              (* add control if control right is provided on x *)
+              let p2 = Server_fs.noext_path p in
+              let%lwt r2 = rights ~default user g (Server_fs.iri p2) in
+              if has_control r2 then
+                Lwt.return all_rights
+              else
+                r
+          | _ ->
+              r
+        end
     | None ->
         match%lwt Server_fs.parent p with
           None -> Server_log._err
