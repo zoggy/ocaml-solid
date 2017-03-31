@@ -371,7 +371,7 @@ module Cached_http (C:Cache) (P:Requests) =
       P.call ~headers ?body `POST iri
         >>= fun (resp, body) ->
         match Code.code_of_status resp.Response.status with
-        | 200 | 201 -> Lwt.return (response_metadata iri (resp, body))
+        | 200 | 201 | 204 -> Lwt.return (response_metadata iri (resp, body))
         | n -> error (Post_error (n, iri))
 
     let post_rdf ?data ?slug ?(typ=Rdf_ldp.c_Resource) iri =
@@ -449,7 +449,7 @@ module Cached_http (C:Cache) (P:Requests) =
       P.call ~headers ?body `PUT iri
       >>= fun (resp, body) ->
         match Code.code_of_status resp.Response.status with
-        | 200 | 201 -> Lwt.return (response_metadata iri (resp, body))
+        | 200 | 201 | 204 -> Lwt.return (response_metadata iri (resp, body))
         | n -> error (Put_error (n, iri))
 
     let post_non_rdf ?data ?mime iri =
@@ -461,7 +461,7 @@ module Cached_http (C:Cache) (P:Requests) =
       P.call ~headers ~body `PATCH iri
         >>= fun (resp, body) ->
         match Code.code_of_status resp.Response.status with
-        | 200 | 201 -> Lwt.return_unit
+        | 200 | 201 | 204 -> Lwt.return_unit
         | n -> error (Patch_error (n, iri))
 
     let patch ?del ?ins iri =
@@ -487,7 +487,7 @@ module Cached_http (C:Cache) (P:Requests) =
       P.call `DELETE iri
       >>= fun (resp, _) ->
         match Code.code_of_status resp.Response.status with
-        | 200 | 201 -> Lwt.return_unit
+        | 200 | 201 | 204 -> Lwt.return_unit
         | n -> error (Delete_error (n, iri))
 
 

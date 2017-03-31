@@ -202,7 +202,7 @@ let apply_patch path str =
       Lwt.return (b && written)
   | _ -> assert false
 
-class r ?(read_only=false) (user:Iri.t option) path =
+class r real_meth ?(read_only=false) (user:Iri.t option) path =
   let write_body rd oc =
     Cohttp_lwt_body.write_body
       (Lwt_io.write oc) rd.Wm.Rd.req_body
@@ -229,7 +229,7 @@ class r ?(read_only=false) (user:Iri.t option) path =
         match Server_fs.kind path with
         | `Acl `Unknown | `Meta `Unknown | `Unknown ->
             let rd =
-              match rd.Wm.Rd.meth with
+              match real_meth with
                 `GET | `HEAD | `OPTIONS ->
                   error_rd rd "Not found" "Ressources does not exist"
               | _ -> rd
@@ -249,7 +249,7 @@ class r ?(read_only=false) (user:Iri.t option) path =
 
     method previously_existed rd =
       match Server_fs.kind path with
-      | `Dir when rd.Wm.Rd.meth = `POST -> Wm.continue false rd
+      | `Dir when real_meth = `POST -> Wm.continue false rd
       | `Dir -> Wm.continue true rd
       | _ -> Wm.continue false rd
 
@@ -288,7 +288,7 @@ class r ?(read_only=false) (user:Iri.t option) path =
         let%lwt p =
           (* when patchin containers or non (xml/rdf or turtle),
              cmopute the right on .meta path instead of path *)
-          match rd.Wm.Rd.meth with
+          match real_meth with
           | `PATCH -> path_to_patch path
           | _ -> Lwt.return path
         in
@@ -301,7 +301,7 @@ class r ?(read_only=false) (user:Iri.t option) path =
           (Iri.to_string (Server_fs.iri path)))
       in
       let%lwt ok =
-        match rd.Wm.Rd.meth with
+        match real_meth with
           `GET | `OPTIONS | `HEAD ->
             Lwt.return (Server_acl.has_read rights)
         | `POST ->
@@ -414,7 +414,7 @@ class r ?(read_only=false) (user:Iri.t option) path =
           Wm.continue ["*/*", self#to_raw] rd
 
     method content_types_accepted rd =
-      match rd.Wm.Rd.meth, Server_fs.kind path with
+      match real_meth, Server_fs.kind path with
       | `PATCH, _ ->
           Wm.continue
             [Ldp_http.mime_sparql_update, self#process_patch]
@@ -461,6 +461,9 @@ class r ?(read_only=false) (user:Iri.t option) path =
                 (`Bad_request, Rdf_sparql.string_of_error e)
             | e ->
                 (`Internal_server_error, Printexc.to_string e)
+          in
+          let%lwt() = Server_log._debug_lwt
+            (fun f -> f "PATCH: %s" msg)
           in
           let body = `String msg in
           let rd = { rd with Wm.Rd.resp_body = body } in
@@ -585,6 +588,15 @@ class r ?(read_only=false) (user:Iri.t option) path =
 
 let http_handler ?user request body =
   let uri = Cohttp.Request.uri request in
+  (* since webmachine does not support PATCH yet, map it
+    to PUT but keep passe the real method in paramter
+    of our resource *)
+  let met = Cohttp.Request.meth request in
+  let request =
+    match met with
+      `PATCH -> { request with Cohttp.Request.meth = `PUT }
+    | _ -> request
+  in
   let uri = match Uri.scheme uri with
       None -> Uri.with_scheme uri (Some "https")
     | Some _ -> uri
@@ -605,7 +617,7 @@ let http_handler ?user request body =
                (Iri.to_string (Server_fs.iri path))
                (Server_fs.path_to_filename path))
         in
-        Lwt.return [ "*", fun () -> new r ~read_only user path ]
+        Lwt.return [ "*", fun () -> new r met ~read_only user path ]
   in
   let open Cohttp in
   Wm.dispatch' routes ~body ~request
