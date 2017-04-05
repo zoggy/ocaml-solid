@@ -88,10 +88,14 @@ let is_container ?iri g =
     | Some iri -> iri
   in
   let sub = Rdf_term.Iri iri in
-  let e i =
-    g.Rdf_graph.exists ~sub ~pred: Rdf_rdf.type_ ~obj:(Rdf_term.Iri i) ()
+  let e t =
+    g.Rdf_graph.exists ~sub ~pred: Rdf_rdf.type_ ~obj:(Rdf_term.Iri t) ()
   in
-  Iri.Set.exists e container_types
+  let b = Iri.Set.exists e container_types in
+  Ldp_log.__debug
+    (fun f -> f "is_container:%b\n%s" b
+      (Rdf_ttl.to_string ~compact:true g));
+  b
 
 let string_of_metadata m =
   let b = Buffer.create 256 in
@@ -385,8 +389,8 @@ module Cached_http (C:Cache) (P:Requests) =
       let open Rdf_graph in
       let open Rdf_term in
       let add = data.add_triple ~sub: (Iri empty_iri) in
-      add ~pred: Rdf_dc.type_ ~obj: (Iri Rdf_ldp.c_Container);
-      add ~pred: Rdf_dc.type_ ~obj: (Iri typ);
+      add ~pred: Rdf_rdf.type_ ~obj: (Iri Rdf_ldp.c_Container);
+      add ~pred: Rdf_rdf.type_ ~obj: (Iri typ);
       (
        match membershipResource with
          None -> ()

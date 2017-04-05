@@ -22,6 +22,6 @@ tutu: client
 	--create-cert tutu \
 	--profile && \
 	( $(LAUNCH_SERVER) & sleep 1 ; \
-	./client $(URL) ; export RES=$$? ; kill $$! ; exit $${RES} )
+	./client $(URL)tutu/Private/ ; export RES=$$? ; kill $$! ; exit $${RES} )
 
 

@@ -32,5 +32,6 @@ module type P =
 
 module Make : P -> Ldp_http.Requests
 
+(** [make ?cache ~cert:(pemfile, privkeyfile) ~dbg] *)
 val make : ?cache:string -> ?cert:(string*string) ->
   dbg:(string -> unit Lwt.t) -> (module Ldp_http.Http) Lwt.t

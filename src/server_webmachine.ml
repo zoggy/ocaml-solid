@@ -144,6 +144,12 @@ let graph_of_request rd path =
         try
           let g = Rdf_graph.open_graph (Server_fs.iri path) in
           Rdf_ttl.from_string g str ;
+          let%lwt () = Server_log._debug_lwt
+            (fun f -> f "graph_of_request (%s): %s"
+              (Iri.to_string (g.Rdf_graph.name ()))
+              (Rdf_ttl.to_string g)
+            )
+          in
           Lwt.return_some g
         with
           e ->
@@ -314,8 +320,15 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
           `GET | `OPTIONS | `HEAD ->
             Lwt.return (Server_acl.has_read rights)
         | `POST ->
-            Server_fs.path_is_container path >|=
-              (&&) (Server_acl.has_write rights || Server_acl.has_append rights)
+            let%lwt is_container = Server_fs.path_is_container path in
+            let%lwt () = log
+              (fun m -> m "is_container %s: %b"
+                 (Iri.to_string (Server_fs.iri path)) is_container)
+            in
+            Lwt.return
+              (is_container &&
+               (Server_acl.has_write rights || Server_acl.has_append rights)
+              )
         | `DELETE ->
             if Server_acl.has_write rights then
              Server_fs.path_can_be_deleted path

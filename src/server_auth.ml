@@ -102,12 +102,12 @@ let verify_webid ~exp ~modu webid g =
   let q = Printf.sprintf
     "PREFIX : <http://www.w3.org/ns/auth/cert#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-ASK { %s :key [ :modulus %s ; :exponent ?exp ; ] .
-      FILTER (?exp = %s)
+ASK { %s :key [ :modulus ?modu ; :exponent ?exp ; ] .
+      FILTER (?exp = %s && ?modu = %s)
     }"
     Rdf_term.(string_of_term (Iri webid))
-    (Rdf_term.string_of_term modu)
-    (Rdf_term.string_of_term exp)
+      (Rdf_term.string_of_term exp)
+      (Rdf_term.string_of_term modu)
   in
   Server_log._debug
     (fun f -> f "auth webid sparql = %s" q);

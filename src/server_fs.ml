@@ -396,11 +396,21 @@ let path_is_container path =
       begin
         let meta = meta_path path in
         match%lwt read_path_graph meta with
-          None -> Lwt.return_false
+          None ->
+            let%lwt () = Server_log._debug_lwt
+              (fun f -> f "%s is not a container because it has not meta graph"
+                 (String.concat "|" path.rel))
+            in
+            Lwt.return_false
         | Some g ->
             Lwt.return (Ldp_http.is_container ~iri: (iri path) g)
       end
-  | _ -> Lwt.return_false
+  | _ ->
+      let%lwt () = Server_log._debug_lwt
+        (fun f -> f "%s not a container because not a directory"
+           (String.concat "|" path.rel))
+      in
+      Lwt.return_false
 
 let iri_append_path iri strings =
   let p =
@@ -441,15 +451,10 @@ let available_dir_entry k =
           let dir = path_to_filename path in
           let%lwt basename = iter dir slug (if slug = "" then 1 else 0) in
           let rel = path.rel @ [ basename ] in
-          let root_iri =
-            let l = match k with
-              | `Dir -> [basename ; ""]
-              | _ -> [basename]
-            in
-            iri_append_path (iri path) l
-          in
           Lwt.return_some
-            { root_dir = path.root_dir; rel ; root_iri ; kind = k ; mime = None }
+            { root_dir = path.root_dir; rel ;
+              root_iri = path.root_iri ;
+              kind = k ; mime = None }
         end
     | _ -> Lwt.return_none
 
@@ -550,9 +555,12 @@ let rec mkdirp =
   let rec create = function
     [] -> Lwt.return_true
   | p::q ->
-      let g = Rdf_graph.open_graph (iri p) in
+      (* set kind to `Dir to create iri with ending / *)
+      let p = { p with  kind = `Dir } in
+      let base = iri p in
+      let g = Rdf_graph.open_graph base in
       g.Rdf_graph.add_triple
-        ~sub: (Rdf_term.Iri (iri p))
+        ~sub: (Rdf_term.Iri base)
         ~pred: Rdf_rdf.type_
         ~obj:(Rdf_term.Iri Rdf_ldp.c_BasicContainer);
       if%lwt post_mkdir p g then
