@@ -46,10 +46,14 @@ server_main.cmo : server_webmachine.cmo server_user.cmo server_log.cmi \
     server_http_tls.cmo server_fs_route.cmo server_conf.cmo server_auth.cmo
 server_main.cmx : server_webmachine.cmx server_user.cmx server_log.cmx \
     server_http_tls.cmx server_fs_route.cmx server_conf.cmx server_auth.cmx
+server_openssl.cmo : server_log.cmi server_fs.cmo
+server_openssl.cmx : server_log.cmx server_fs.cmx
 server_page.cmo :
 server_page.cmx :
-server_user.cmo : server_log.cmi server_fs.cmo server_conf.cmo ldp_http.cmi
-server_user.cmx : server_log.cmx server_fs.cmx server_conf.cmx ldp_http.cmx
+server_user.cmo : server_openssl.cmo server_log.cmi server_fs.cmo \
+    server_conf.cmo ldp_http.cmi
+server_user.cmx : server_openssl.cmx server_log.cmx server_fs.cmx \
+    server_conf.cmx ldp_http.cmx
 server_webmachine.cmo : server_page.cmo server_log.cmi server_fs.cmo \
     server_acl.cmo ldp_types.cmi ldp_http.cmi cohttp_tls.cmo
 server_webmachine.cmx : server_page.cmx server_log.cmx server_fs.cmx \

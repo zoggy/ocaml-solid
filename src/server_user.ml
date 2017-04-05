@@ -42,7 +42,7 @@ let iri_sharp str = Iri.of_string ("#"^str)
 
 let re_var var = Re.(compile (str ("{"^var^"}")))
 
-let vars_of_pem pem = 
+let vars_of_pem pem =
   let%lwt p = Server_openssl.info_from_pem pem in
   Lwt.return
     (p.pem_webid,
@@ -114,8 +114,7 @@ let mk_root_acl root_path webid =
     Server_log._err_lwt
       (fun f -> f "Could not create %s" (Server_fs.path_to_filename acl_path))
 
-let mk_templates root_path ?(name="Your name")
-  ?(cert_label="Cert label") ~vars ~profile webid =
+let mk_templates root_path ~name ~cert_label ~vars ~profile webid =
   let templates = templates root_path in
   let templates =
     if profile then templates @ profile_templates root_path else templates
@@ -155,20 +154,56 @@ let mk_templates root_path ?(name="Your name")
   in
   Lwt_list.iter_s mk templates
 
-let add ?webid ?name ?cert_label ?pem ~profile login =
-  let%lwt (webid, vars) =
-    match pem with
-      None -> Lwt.return (webid, [])
-    | Some file -> vars_of_pem file
+let create_cert ~webid ~cert_label prefix =
+  let csrfile = prefix^".csr" in
+  let pemfile = prefix^".pem" in
+  let keyfile = prefix^".key" in
+  let cfxfile = prefix^".cfx" in
+  let%lwt () = Server_openssl.make_csr_and_key
+    ~cn:cert_label ~webid ~csrfile ~keyfile
   in
+  let%lwt () = Server_openssl.make_pem ~webid ~csrfile ~keyfile ~pemfile in
+  let%lwt () = make_pkcs12 ~keyfile ~pemfile ~outfile:cfxfile in
+  let%lwt () = Server_fs.safe_unlink csrfile in
+  let%lwt () =
+    Lwt_io.(write_line stdout
+     (Printf.sprintf
+      "Files created:\n\
+        %s: self-signed user certificate\n\
+        %s: private key\n\n
+        %s: pkcs12 certificate to import in the browser"
+        pemfile keyfile cfxfile)
+    )
+  in
+  Lwt.return pemfile
+
+let add ?webid ?(name="User name") ?(cert_label=name) ?cert ~profile root_uri =
   let%lwt webid =
     match webid with
-      None -> Lwt.fail_with "missing webid"
+      None ->
+        let iri = Iri.of_string root_uri in
+        let iri = Iri.append_path iri ["profile"; "card"] in
+        let iri = Iri.with_fragment iri (Some "me") in
+        let%lwt () = Server_log._info_lwt
+          (fun f -> f "No webid provided, using %s" (Iri.to_string iri))
+        in
+        Lwt.return iri
     | Some iri -> Lwt.return iri
   in
-  (* FIXME: change when virtual hosts will be handled in config file *)
-  let root_uri = Printf.sprintf "https://localhost:%d/~%s/"
-    (Ocf.get Server_conf.port) login
+  let%lwt (webid, vars) =
+    match cert with
+    | None -> Lwt.return (webid, [])
+    | Some x ->
+        let%lwt (pem_webid, vars) = 
+          match x with
+          | `Create prefix ->
+              let%lwt pemfile = create_cert ~webid ~cert_label prefix in
+              vars_of_pem pemfile
+          | `Exists pemfile -> vars_of_pem pemfile
+        in
+        match pem_webid with
+          None -> Lwt.fail_with "No webid in PEM file"
+        | Some id -> Lwt.return (id, vars)
   in
   let%lwt (root_path,_ro) = Server_fs.path_of_uri (Uri.of_string root_uri) in
   let root_dir = Server_fs.path_to_filename root_path in
@@ -179,7 +214,7 @@ let add ?webid ?name ?cert_label ?pem ~profile login =
     if%lwt Server_fs.post_mkdir root_path g then
       let%lwt () = mk_root_acl root_path webid in
       mk_templates (Iri.to_uri (Server_fs.iri root_path))
-        ?name ?cert_label ~vars ~profile webid
+        ~name ~cert_label ~vars ~profile webid
     else
       Lwt.fail_with (Printf.sprintf "Directory %s not created" root_dir)
 

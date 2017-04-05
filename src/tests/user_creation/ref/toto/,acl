@@ -1,0 +1,7 @@
+@prefix pim: <http://www.w3.org/ns/pim/space#> .
+@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+<#owner> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> acl:Authorization ;
+    acl:accessTo <./> ;
+    acl:agent <https://localhost:9999/toto/profile/card#me> ;
+    acl:defaultForNew <./> ;
+    acl:mode acl:Control, acl:Read, acl:Write.

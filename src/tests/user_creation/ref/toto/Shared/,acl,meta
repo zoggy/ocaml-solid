@@ -1,0 +1,2 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+<https://localhost:9999/toto/Shared/,acl> <http://purl.org/dc/terms/format> "text/turtle".

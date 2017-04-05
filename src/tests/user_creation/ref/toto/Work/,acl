@@ -1,0 +1,8 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+<#owner>
+    a acl:Authorization ;
+    acl:accessTo <.>, <> ;
+    acl:agent <https://localhost:9999/toto/profile/card#me> ;
+    acl:defaultForNew <.> ;
+    acl:mode acl:Control, acl:Read, acl:Write .

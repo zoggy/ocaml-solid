@@ -37,8 +37,12 @@ let apply_vars vars template =
     (fun acc (re,by) -> Re.replace_string re ~all:true ~by acc)
     template vars
 
+let escape_hash =
+  let re = Re.(compile (char '#')) in
+  Re.replace_string re ~all:true ~by:"\\#"
+
 let make_csr_and_key ~cn ~webid ~csrfile ~keyfile =
-  let vars = make_vars [ "cn", cn ; "webid", Iri.to_string webid ] in
+  let vars = make_vars [ "cn", cn ; "webid", escape_hash (Iri.to_string webid) ] in
   let temp = Filename.temp_file "oss" ".csr" in
   let%lwt () = Lwt_io.(with_file ~mode: Output temp
      (fun oc -> write oc (apply_vars vars csr_template)))
@@ -55,9 +59,10 @@ let make_pem ~webid ~csrfile ~keyfile ~pemfile =
   let temp = Filename.temp_file "oss" ".cnf" in
   let com = Printf.sprintf "cat /etc/ssl/openssl.cnf > %s" (Filename.quote temp) in
   let%lwt () = exec com in
-  let%lwt () = Lwt_io.(with_file ~flags:[Unix.O_APPEND] ~mode:Output temp
+  let%lwt () = Lwt_io.(with_file ~flags:[Unix.O_APPEND;Unix.O_WRONLY] ~mode:Output temp
      (fun oc -> write_line oc
-        (Printf.sprintf "\n[SAN]\nsubjectAltName=critical,URI:%s" (Iri.to_string webid)))
+        (Printf.sprintf "\n[SAN]\nsubjectAltName=critical,URI:%s"
+          (escape_hash (Iri.to_string webid))))
     )
   in
   let com = Printf.sprintf
@@ -158,7 +163,7 @@ let info_from_pem pemfile =
       with Iri.Error e ->
           Server_log._debug
             (fun f -> f "%s: %s" s (Iri.string_of_error e));
-          None 
+          None
     with
       _ -> None
   in

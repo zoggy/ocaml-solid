@@ -27,7 +27,7 @@
 let conf_options = Server_conf.add_options Ocf.group
 
 let webid = ref None
-let pem = ref None
+let cert = ref (None : [`Exists of string | `Create of string] option)
 let name = ref None
 let cert_label = ref None
 let profile = ref false
@@ -45,13 +45,13 @@ let options =
     Arg.Unit (fun () -> print_endline (Ocf.to_string conf_options); exit 0),
     " print current configuration" ;
 
-    "--add-user", Arg.String (fun login -> mode := Add_user login),
-    "login add user workspace in home root" ;
+    "--add-user", Arg.String (fun uri -> mode := Add_user uri),
+    "root-uri add user workspace at root-uri" ;
 
     "--webid", Arg.String (fun s -> webid := Some (Iri.of_string s)),
     "iri use iri as webid for new user" ;
 
-    "--pem", Arg.String (fun s -> pem := Some s),
+    "--pem", Arg.String (fun s -> cert := Some (`Exists s)),
     "file get modulus, exponent and eventually webid from x509 pem file" ;
 
     "--name", Arg.String (fun s -> name := Some s),
@@ -59,6 +59,9 @@ let options =
 
     "--cert-label", Arg.String (fun s -> cert_label := Some s),
     "label associate label to the key defined in profile, if a profile is generated" ;
+
+    "--create-cert", Arg.String (fun s -> cert := Some (`Create s)),
+    "prefix create certificate files in prefix.pem, prefix.key and prefix.pfx" ;
 
     "--profile", Arg.Set profile,
     " create profile/card[,acl]" ;
@@ -75,9 +78,9 @@ let main () =
   | () ->
       Server_fs_route.init (Ocf.get Server_conf.storage_rules) ;
       match !mode with
-      | Add_user login ->
+      | Add_user uri ->
           Server_user.add ?name:!name  ?cert_label:!cert_label
-            ?pem:!pem ?webid:!webid ~profile:!profile login
+            ?cert:!cert ?webid:!webid ~profile:!profile uri
       | Server ->
           let%lwt () = Server_auth.init_http ~curl: !use_curl in
           let%lwt () = Server_log._app_lwt
