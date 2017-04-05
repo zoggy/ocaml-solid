@@ -48,7 +48,7 @@ let options =
     "--add-user", Arg.String (fun login -> mode := Add_user login),
     "login add user workspace in home root" ;
 
-    "--webid", Arg.String (fun s -> webid := Some s),
+    "--webid", Arg.String (fun s -> webid := Some (Iri.of_string s)),
     "iri use iri as webid for new user" ;
 
     "--pem", Arg.String (fun s -> pem := Some s),

@@ -29,6 +29,8 @@ open Rdf_graph
 open Rdf_pim.Open
 open Rdf_acl.Open
 
+open Server_openssl
+
 let namespaces = [
     Rdf_pim.pim, "pim" ;
     Rdf_acl.acl, "acl" ;
@@ -40,89 +42,15 @@ let iri_sharp str = Iri.of_string ("#"^str)
 
 let re_var var = Re.(compile (str ("{"^var^"}")))
 
-let vars_of_pem pem =
-  let%lwt () = Server_log._debug_lwt
-    (fun m -> m "Extracing pubkey from %s" pem)
-  in
-  let pubkey = Filename.temp_file "oss" "pubkey" in
-  let command = Printf.sprintf
-    "openssl x509 -pubkey -noout -in %s > %s"
-    (Filename.quote pem) (Filename.quote pubkey)
-  in
-  match Sys.command command with
-    n when n <> 0 -> Lwt.fail_with ("Command failed: "^command)
-  | _ ->
-      let%lwt () = Server_log._debug_lwt
-        (fun m -> m "Extracing modulus from %s" pubkey)
-      in
-      let command = ("",
-         [| "openssl" ; "rsa" ; "-in" ; pubkey ; "-pubin" ;
-          "-inform" ; "PEM" ; "-modulus" ; "-noout" |])
-      in
-      let%lwt str = Lwt_process.pread command in
-      let re = Re.(compile (seq
-          [
-            str "Modulus=" ;
-            group (rep1 (alt [alpha;digit])) ;
-            eol ;
-          ]))
-      in
-      let groups = Re.exec re str in
-      let modulus = Re.Group.get groups 1 in
-
-      let%lwt () = Server_log._debug_lwt
-        (fun m -> m "Extracing exponent from %s" pubkey)
-      in
-      let command = ("",
-         [| "openssl" ; "rsa" ; "-in" ; pubkey ; "-pubin" ;
-          "-inform" ; "PEM" ; "-text" ; "-noout" |])
-      in
-      let%lwt str = Lwt_process.pread command in
-      let re = Re.(compile (seq
-          [
-            str "Exponent: " ;
-            group (rep1 digit) ;
-            char ' ' ;
-          ]))
-      in
-      let groups = Re.exec re str in
-      let exponent = Re.Group.get groups 1 in
-      let%lwt () = Server_fs.safe_unlink pubkey in
-
-      let%lwt () = Server_log._debug_lwt
-        (fun m -> m "Extracing Subject Alternative Name from %s" pem)
-      in
-      let command =
-        ("", [| "openssl" ; "x509" ; "-noout" ; "-in" ; pem ; "-text" |])
-      in
-      let%lwt str = Lwt_process.pread command in
-      let re = Re.(compile (seq
-          [
-            str "X509v3 Subject Alternative Name:";
-            rep (set " \t\n\r");
-            str "URI:" ;
-            group (rep1 notnl) ;
-          ]))
-      in
-      let webid =
-        try
-          let groups = Re.exec re str in
-          Some (Re.Group.get groups 1)
-        with
-          _ -> None
-      in
-      let%lwt () = Server_log._debug_lwt
-        (fun m -> m "modulus=%s\nexponent=%s\nwebid=%s"
-           modulus exponent
-             (match webid with None -> "NONE" | Some s -> s))
-      in
-      Lwt.return
-        (webid,
-         [
-           re_var "cert-modulus", modulus ;
-           re_var "cert-exponent", exponent ;
-         ]
-        )
+let vars_of_pem pem = 
+  let%lwt p = Server_openssl.info_from_pem pem in
+  Lwt.return
+    (p.pem_webid,
+     [
+       re_var "cert-modulus", p.pem_modulus ;
+       re_var "cert-exponent", p.pem_exponent ;
+     ]
+    )
 
 let templates iri =
   [
@@ -236,7 +164,7 @@ let add ?webid ?name ?cert_label ?pem ~profile login =
   let%lwt webid =
     match webid with
       None -> Lwt.fail_with "missing webid"
-    | Some str -> Lwt.return (Iri.of_string str)
+    | Some iri -> Lwt.return iri
   in
   (* FIXME: change when virtual hosts will be handled in config file *)
   let root_uri = Printf.sprintf "https://localhost:%d/~%s/"
