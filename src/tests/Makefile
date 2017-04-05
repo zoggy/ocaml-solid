@@ -1,6 +1,6 @@
 include ../../master.Makefile
 
-all: patch
+all: patch user_creation
 
 patch:
 	$(MAKE) -C $@
