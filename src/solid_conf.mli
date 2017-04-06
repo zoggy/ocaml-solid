@@ -53,6 +53,7 @@ module Wrapper : sig
     val string : string t
     val typed_string : Iri.t -> string t
     val string_ : ?typ:Iri.t -> ('a -> string) -> (string -> 'a) -> 'a t
+    val iri : Iri.t t
     val list : ?typ: Iri.t -> 'a t -> 'a list t
     val option : 'a t -> 'a option t
     val pair : 'a t -> 'b t -> ('a * 'b) t
