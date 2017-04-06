@@ -618,7 +618,12 @@ class r real_meth ?(read_only=false)
       let module H = Cohttp.Header in
       let rd =
         Wm.Rd.with_resp_headers (fun h ->
-           let h = H.add h "Access-Control-Allow-Origin" "*" in
+           let origin =
+             match Cohttp.Header.get rd.Wm.Rd.req_headers "origin" with
+               None -> "*"
+             | Some str -> str
+           in
+           let h = H.add h "Access-Control-Allow-Origin" origin in
            let h = H.add h "Access-Control-Allow-Credentials" "true" in
            let h = H.add h
              "Access-Control-Expose-Headers"
