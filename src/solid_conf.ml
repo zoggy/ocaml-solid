@@ -3,10 +3,28 @@
 open Rdf_graph
 open Rdf_term
 
-module SMap = Map.Make(String)
+type path_elt = [`S of string | `I of Iri.t]
+type path = path_elt list
 
-type path = string list
-let string_of_path = String.concat "."
+module P = struct
+  type t = path_elt
+  let compare (e1:t) (e2:t) =
+    match e1, e2 with
+        `S s1, `S s2 -> Pervasives.compare s1 s2
+      | `S _, `I _ -> 1
+      | `I _, `S _ -> -1
+      | `I i1, `I i2 -> Iri.compare i1 i2
+  end
+
+
+module PMap = Map.Make(P)
+
+let string_of_path l =
+  let f = function
+    `S s -> s
+  | `I i -> Iri.to_string i
+  in
+  String.concat "." (List.map f l)
 
 type error =
 | Invalid_value of Rdf_term.term
@@ -81,7 +99,7 @@ module Wrapper =
       let from_term ?def _ t =
         match t with
           Literal lit ->
-            (try of_s (string_of_literal lit)
+            (try of_s lit.lit_value
              with _ -> invalid_value t)
         | _ -> invalid_value t
       in
@@ -216,29 +234,29 @@ let triple ?doc ?cb w1 w2 w3 x = option ?doc ?cb (Wrapper.triple w1 w2 w3) x
 
 type node =
   | Option of conf_option_
-  | Group of node SMap.t
+  | Group of node PMap.t
 
 and 'a group = node
-let group = Group SMap.empty
+let group = Group PMap.empty
 
 let rec add ?(acc_path=[]) group path node =
   match path with
     [] -> invalid_path []
   | [h] ->
       begin
-        match SMap.find h group with
+        match PMap.find h group with
         | exception Not_found ->
-            SMap.add h node group
+            PMap.add h node group
         | _ ->
             path_conflict (List.rev (h::acc_path))
       end
   | h :: q ->
-      match SMap.find h group with
+      match PMap.find h group with
       | exception Not_found ->
           let map = add
-            ~acc_path: (h::acc_path) SMap.empty q node
+            ~acc_path: (h::acc_path) PMap.empty q node
           in
-          SMap.add h (Group map) group
+          PMap.add h (Group map) group
       | Option _ ->
           path_conflict (List.rev (h::acc_path))
       | Group _ when q = [] ->
@@ -247,7 +265,7 @@ let rec add ?(acc_path=[]) group path node =
           let map = add
             ~acc_path: (h::acc_path) map q node
           in
-          SMap.add h (Group map) group
+          PMap.add h (Group map) group
 
 let add_group group path g =
   match group with
@@ -273,33 +291,59 @@ let from_term_option path option g term =
 
 
 let assocs g sub =
+  let ds = Rdf_ds.simple_dataset g in
   let q = [%sparql
     "PREFIX rdf: %{term}
      SELECT ?name ?term
      WHERE { %{term} rdf:value _:p .
-             _:p rdf:id ?name .
+             _:p rdf:ID ?name .
              _:p rdf:value ?term .}"
        (Iri Rdf_rdf.rdf) sub]
   in
-  let ds = Rdf_ds.simple_dataset g in
-  try
-    let solutions = Rdf_sparql.select ~base:(g.name()) ds q in
-    List.fold_left
-      (fun acc sol ->
-         let k = Rdf_sparql.get_string sol "name" in
-         let t = Rdf_sparql.get_term sol "term" in
-         SMap.add k t acc)
-      SMap.empty
-      solutions
-  with
-    e ->
-      Ldp_log.__debug (fun f -> f "assocs: %s" (Printexc.to_string e));
-      SMap.empty
-
+  let map =
+    try
+      let solutions = Rdf_sparql.select ~base:(g.name()) ds q in
+      List.fold_left
+        (fun acc sol ->
+           let k = `S (Rdf_sparql.get_string sol "name") in
+           let t = Rdf_sparql.get_term sol "term" in
+           PMap.add k t acc)
+        PMap.empty
+        solutions
+    with
+      e ->
+        Ldp_log.__debug (fun f -> f "assocs: %s" (Printexc.to_string e));
+        PMap.empty
+  in
+  let q = [%sparql
+    "PREFIX rdf: %{term}
+     SELECT ?pred ?term
+     WHERE { %{term} ?pred ?term .
+             FILTER (?pred != rdf:value)
+     }"
+       (Iri Rdf_rdf.rdf) sub]
+  in
+  let map =
+    try
+      let base = g.name() in
+      let solutions = Rdf_sparql.select ~base ds q in
+      List.fold_left
+        (fun acc sol ->
+           let k = `I (Rdf_sparql.get_iri sol base "pred") in
+           let t = Rdf_sparql.get_term sol "term" in
+           PMap.add k t acc)
+        map
+        solutions
+    with
+      e ->
+        Ldp_log.__debug (fun f -> f "assocs: %s" (Printexc.to_string e));
+        map
+  in
+  map
 
 let rec from_term_group =
-  let f path (assocs:Rdf_term.term SMap.t) g str node =
-    match SMap.find str assocs with
+  let f path (assocs:Rdf_term.term PMap.t) g str node =
+    match PMap.find str assocs with
     | exception Not_found -> ()
     | term ->
         match node with
@@ -309,7 +353,7 @@ let rec from_term_group =
   in
   fun ?(path=[]) map g term ->
     let assocs = assocs g term in
-    SMap.iter (f path assocs g) map
+    PMap.iter (f path assocs g) map
 
 let from_term = function
   Option o -> from_term_option [] o
@@ -322,35 +366,50 @@ let from_graph map ?root g =
   in
   from_term map g term
 
-let add_term_option ?with_doc option prop_node g =
+let add_term_option ?with_doc ?(pred=Rdf_rdf.value) option prop_node g =
   let t = option.wrapper.Wrapper.to_term ?with_doc g option.value in
-  g.add_triple ~sub:prop_node ~pred:Rdf_rdf.value ~obj:t;
+  g.add_triple ~sub:prop_node ~pred ~obj:t;
   match with_doc, option.doc with
-  | Some true, Some str ->
+  | Some true, Some str when Iri.equal pred Rdf_rdf.value ->
       g.add_triple ~sub:prop_node
         ~pred:Rdf_rdf.description
         ~obj:(Rdf_term.term_of_literal_string str)
   | _, _ -> ()
 
-let rec add_term_group ?with_doc map root g =
-  let prop_node = blank_ (g.new_blank_id()) in
-  g.add_triple ~sub:root ~pred:Rdf_rdf.value ~obj:prop_node;
+let rec add_term_group ?with_doc ?(pred=Rdf_rdf.value) map ?(first=false) root g =
+  let prop_node =
+    if first then
+      root
+    else
+      (
+       let b = blank_ (g.new_blank_id()) in
+       g.add_triple ~sub:root ~pred ~obj:b;
+       b
+      )
+  in
   let f name node =
-    let group_node = blank_ (g.new_blank_id()) in
-    g.add_triple ~sub:prop_node ~pred:Rdf_rdf.value ~obj:group_node;
-    g.add_triple ~sub:group_node ~pred:Rdf_rdf.id
-      ~obj:(Rdf_term.term_of_literal_string name);
+    let (group_node, pred) =
+      match name with
+      | `S name ->
+          let b = blank_ (g.new_blank_id()) in
+          g.add_triple ~sub:prop_node ~pred:Rdf_rdf.value ~obj:b;
+          g.add_triple ~sub:b ~pred:Rdf_rdf.id
+            ~obj:(Rdf_term.term_of_literal_string name);
+          (b, Rdf_rdf.value)
+      | `I iri ->
+          (prop_node, iri)
+    in
     match node with
     | Group map ->
-        add_term_group ?with_doc map group_node g
+        add_term_group ?with_doc ~pred map group_node g
     | Option o ->
-        add_term_option ?with_doc o group_node g
+        add_term_option ?with_doc ~pred o group_node g
   in
-  SMap.iter f map
+  PMap.iter f map
 
 let to_graph_ ?(with_doc=true) = function
 | Option o -> add_term_option ~with_doc o
-| Group g -> add_term_group ~with_doc g
+| Group g -> add_term_group ~with_doc ~first: true g
 
 let to_graph ?with_doc map base =
   let g = open_graph base in

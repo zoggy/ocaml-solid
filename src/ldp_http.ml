@@ -308,13 +308,12 @@ module Cached_http (C:Cache) (P:Requests) =
       get_non_rdf ~accept iri >>=
       fun (content_type, str) ->
           let mime_type = Ldp_types.mime_of_content_type content_type in
-          P.dbg str >>=
-            fun () ->
-              if parse then
-                let res = parse_graph ?g iri mime_type str in
-                Lwt.return (str, Some res)
-              else
-                Lwt.return (str, None)
+          let%lwt () = Ldp_log.__debug_lwt (fun f -> f "%s" str) in
+          if parse then
+            let res = parse_graph ?g iri mime_type str in
+            Lwt.return (str, Some res)
+          else
+            Lwt.return (str, None)
 
     let get_rdf_graph ?g ?accept iri =
       match%lwt get_rdf ?g ?accept ~parse: true iri with

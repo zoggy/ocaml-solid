@@ -7,5 +7,5 @@ client: client.ml
 test: client
 	@( $(LAUNCH_SERVER) & sleep 1 ; \
 	$(RM) -r www ; $(CP) -r origin www ; \
-	 (./client $(URL) && diff -r ref www) ; export RES=$$? ; kill $$! ; exit $${RES} )
+	 (./client $(URL) && ([ ! -d ref ] || diff -r ref www) ) ; export RES=$$? ; kill $$! ; exit $${RES} )
  

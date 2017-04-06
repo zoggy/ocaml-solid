@@ -3,7 +3,9 @@
 (** Reading and writing configuration files in RDF graphs. *)
 
 (** To represent option names from root. *)
-type path = string list
+
+type path_elt = [`S of string | `I of Iri.t]
+type path = path_elt list
 
 (** {2 Errors} *)
 
