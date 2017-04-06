@@ -170,7 +170,7 @@ let create_cert ~webid ~cert_label prefix =
      (Printf.sprintf
       "Files created:\n\
         %s: self-signed user certificate\n\
-        %s: private key\n\n
+        %s: private key\n\
         %s: pkcs12 certificate to import in the browser"
         pemfile keyfile cfxfile)
     )
@@ -194,7 +194,7 @@ let add ?webid ?(name="User name") ?(cert_label=name) ?cert ~profile root_uri =
     match cert with
     | None -> Lwt.return (webid, [])
     | Some x ->
-        let%lwt (pem_webid, vars) = 
+        let%lwt (pem_webid, vars) =
           match x with
           | `Create prefix ->
               let%lwt pemfile = create_cert ~webid ~cert_label prefix in

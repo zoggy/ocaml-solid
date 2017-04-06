@@ -36,6 +36,9 @@ val __warn_lwt: 'a Logs_lwt.log
 val __info_lwt: 'a Logs_lwt.log
 val __debug_lwt: 'a Logs_lwt.log
 
+(** @raise Failure if string does not correspond to a valid level. *)
+val level_of_string : string -> Logs.level
+
 val level_wrapper: Logs.level option Ocf.wrapper
 val log_level : Logs.level option Ocf.conf_option
 

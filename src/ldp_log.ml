@@ -38,6 +38,15 @@ let __debug_lwt f = Logs_lwt.debug ~src f
 
 open Logs
 
+let level_of_string s =
+  match String.lowercase_ascii s with
+    "app" | "0" -> App
+  | "error" | "1" -> Error
+  | "warning" | "2" -> Warning
+  | "info" | "3" -> Info
+  | "debug" | "4" -> Debug
+  | _ -> failwith (Printf.sprintf "Bad log level value: %S" s)
+
 let level_wrapper =
   let to_json ?with_doc = function
     App -> `String "app"
@@ -47,16 +56,7 @@ let level_wrapper =
   | Debug -> `String "debug"
   in
   let from_json ?(def=App) = function
-  `String s ->
-      begin
-        match String.lowercase_ascii s with
-          "app" | "0" -> App
-        | "error" | "1" -> Error
-        | "warning" | "2" -> Warning
-        | "info" | "3" -> Info
-        | "debug" | "4" -> Debug
-        | _ -> def
-      end
+  `String s -> level_of_string s
   | _ -> prerr_endline "bad value";def
   in
   let w = Ocf.Wrapper.make to_json from_json in

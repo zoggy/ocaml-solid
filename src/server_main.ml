@@ -67,7 +67,11 @@ let options =
     " create profile/card[,acl]" ;
 
     "--curl", Arg.Set use_curl,
-    " use curl to execute GET requests"
+    " use curl to execute GET requests" ;
+
+    "--log-level", Arg.String
+    (fun str -> Ocf.set Server_conf.global_log_level (Some (Ldp_log.level_of_string str))),
+    "[debug|info|warning|error|app] set global log level" ;
   ]
 
 let usage = Printf.sprintf "Usage: %s [options]\nwhere options are:" Sys.argv.(0)
