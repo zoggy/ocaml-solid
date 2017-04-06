@@ -208,7 +208,9 @@ let apply_patch path str =
       Lwt.return (b && written)
   | _ -> assert false
 
-class r real_meth ?(read_only=false) (user:Iri.t option) path =
+class r real_meth ?(read_only=false)
+  ?(rights_for_path=Server_acl.rights_for_path)
+  (user:Iri.t option) path =
   let write_body rd oc =
     Cohttp_lwt_body.write_body
       (Lwt_io.write oc) rd.Wm.Rd.req_body
@@ -307,7 +309,7 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
           | `PATCH -> path_to_patch path
           | _ -> Lwt.return path
         in
-        Server_acl.rights_for_path user p
+        rights_for_path user p
       in
       let%lwt () = log
         (fun m -> m "rights %d to user %s on %s"
@@ -533,13 +535,13 @@ class r real_meth ?(read_only=false) (user:Iri.t option) path =
       Wm.continue body rd
 
     method private to_container_ttl rd =
-      let can_read p = Server_acl.(rights_for_path user p >|= has_read) in
+      let can_read p = rights_for_path user p >|= Server_acl.has_read in
       let%lwt g = Server_fs.create_container_graph path can_read in
       let body = `String (Rdf_ttl.to_string ~compact: true g) in
       self#to_container body rd
 
     method private to_container_xmlrdf rd =
-      let can_read p = Server_acl.(rights_for_path user p >|= has_read) in
+      let can_read p = rights_for_path user p >|= Server_acl.has_read in
       let%lwt g = Server_fs.create_container_graph path can_read in
       let body = `String (Rdf_xml.to_string g) in
       self#to_container body rd
