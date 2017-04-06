@@ -1,7 +1,7 @@
 include ../../../master.Makefile
 
 COMPILE=$(OCAMLFIND) ocaml -package solid.tls -linkpkg
-LAUNCH_SERVER=$(ROOT)/src/oss -c config.json --log-level app
+LAUNCH_SERVER=$(ROOT)/src/oss -c config.json --log-level ""
 URL=https://localhost:9999/
 
 all: test

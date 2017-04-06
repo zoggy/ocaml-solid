@@ -2,10 +2,10 @@
 all: test
 
 client: client.ml
-	$(OCAMLFIND) ocamlopt -o $@ -package solid.tls,lwt.ppx -rectypes -linkpkg $<
+	@$(OCAMLFIND) ocamlopt -o $@ -package solid.tls,lwt.ppx -rectypes -linkpkg $<
 
 test: client
-	( $(LAUNCH_SERVER) & sleep 1 ; \
+	@( $(LAUNCH_SERVER) & sleep 1 ; \
 	$(RM) -r www ; $(CP) -r origin www ; \
 	 (./client $(URL) && diff -r ref www) ; export RES=$$? ; kill $$! ; exit $${RES} )
  
