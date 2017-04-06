@@ -8,4 +8,6 @@ test: client
 	@( $(LAUNCH_SERVER) & sleep 1 ; \
 	$(RM) -r www ; $(CP) -r origin www ; \
 	 (./client $(URL) && ([ ! -d ref ] || diff -r ref www) ) ; export RES=$$? ; kill $$! ; exit $${RES} )
- 
+
+clean:
+	$(RM) *.cm* *.o *.annot client

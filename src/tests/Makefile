@@ -1,6 +1,7 @@
 include ../../master.Makefile
 
-all: patch user_creation
+SUBS=patch user_creation solid-conf
+all: $(SUBS)
 
 patch:
 	$(MAKE) -C $@
@@ -8,5 +9,11 @@ patch:
 user_creation:
 	$(MAKE) -C $@
 
-.PHONY: patch put post get options user_creation
+solid-conf:
+	$(MAKE) -C $@
+
+.PHONY: patch put post get options user_creation solid-conf
+
+clean:
+	for i in $(SUBS); do $(MAKE) -C $$i clean; done
 

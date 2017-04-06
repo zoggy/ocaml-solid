@@ -24,4 +24,5 @@ tutu: client
 	( $(LAUNCH_SERVER) & sleep 1 ; \
 	./client $(URL)tutu/Private/ ; export RES=$$? ; kill $$! ; exit $${RES} )
 
-
+clean:
+	$(RM) *.cm* *.o *.annot client tutu.pem tutu.key tutu.cfx
