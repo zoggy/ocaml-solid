@@ -319,7 +319,11 @@ class r real_meth ?(read_only=false)
       in
       let%lwt ok =
         match real_meth with
-          `GET | `OPTIONS | `HEAD ->
+        | `OPTIONS ->
+            (* browser's pre-flight requests do not send credentials,
+               so a 403 would make the browser block the request *)
+            Lwt.return_true
+        | `GET (* | `OPTIONS *) | `HEAD ->
             Lwt.return (Server_acl.has_read rights)
         | `POST ->
             let%lwt is_container = Server_fs.path_is_container path in
@@ -623,7 +627,16 @@ class r real_meth ?(read_only=false)
                None -> "*"
              | Some str -> str
            in
+           let allowed_mets =
+             String.concat ","
+               (List.map Cohttp.Code.string_of_method allowed_methods)
+           in
            let h = H.add h "Access-Control-Allow-Origin" origin in
+           let h = H.add h "Access-Control-Allow-Methods" allowed_mets in
+           let h = H.add h "Access-Control-Allow-Headers"
+             (match H.get rd.Wm.Rd.req_headers "access-control-request-headers" with
+                None -> "" | Some s -> s)
+           in
            let h = H.add h "Access-Control-Allow-Credentials" "true" in
            let h = H.add h
              "Access-Control-Expose-Headers"
@@ -636,9 +649,7 @@ class r real_meth ?(read_only=false)
              | _ -> h
            in
            let h = H.add h "Accept-Patch" Ldp_http.mime_sparql_update in
-           let h = H.add_unless_exists h "Allow"
-             (String.concat "," (List.map Cohttp.Code.string_of_method allowed_methods))
-           in
+           let h = H.add_unless_exists h "Allow" allowed_mets in
            let h =
              match user with
                None -> h
