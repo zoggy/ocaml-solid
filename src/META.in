@@ -35,7 +35,7 @@ package "tool" (
 package "js" (
   version = "@VERSION@"
   description = "LDP and SOLID with OCaml - Library to compile to Javascript"
-  requires = "cohttp.lwt,lwt.ppx,rdf.js,ppx_sexp_conv,@JS_PACKAGES@"
+  requires = "cohttp.lwt,lwt.ppx,rdf.js,ppx_sexp_conv,ocf,@JS_PACKAGES@"
   archive(byte) = "solid_js.cma"
 )
 
