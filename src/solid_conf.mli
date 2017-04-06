@@ -104,6 +104,7 @@ val int : ?doc: string -> ?cb: (int -> unit) -> int -> int conf_option
 val float : ?doc: string -> ?cb: (float -> unit) -> float -> float conf_option
 val bool : ?doc: string -> ?cb: (bool -> unit) -> bool -> bool conf_option
 val string : ?doc: string -> ?cb: (string -> unit) -> string -> string conf_option
+val iri : ?doc: string -> ?cb: (Iri.t -> unit) -> Iri.t -> Iri.t conf_option
 val list : ?doc: string -> ?cb: ('a list -> unit) -> 'a wrapper ->
   'a list -> 'a list conf_option
 val option_ : ?doc: string -> ?cb: ('a option -> unit) ->

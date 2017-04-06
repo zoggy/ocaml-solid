@@ -105,6 +105,15 @@ module Wrapper =
       in
       make to_term from_term
 
+    let iri =
+      let to_term ?with_doc g iri = Iri iri in
+      let from_term ?def _ t =
+        match t with
+          Iri iri -> iri
+        | _ -> invalid_value t
+      in
+      make to_term from_term
+
     let string = string_ (fun x -> x) (fun x -> x)
     let typed_string typ = string_ ~typ  (fun x -> x) (fun x -> x)
 
@@ -227,6 +236,7 @@ let int ?doc ?cb n = option ?doc ?cb Wrapper.int n
 let float ?doc ?cb x = option ?doc ?cb Wrapper.float x
 let bool ?doc ?cb x = option ?doc ?cb Wrapper.bool x
 let string ?doc ?cb s = option ?doc ?cb Wrapper.string s
+let iri ?doc ?cb i = option ?doc ?cb Wrapper.iri i
 let list ?doc ?cb w l = option ?doc ?cb (Wrapper.list w) l
 let option_ ?doc ?cb w l = option ?doc ?cb (Wrapper.option w) l
 let pair ?doc ?cb w1 w2 x = option ?doc ?cb (Wrapper.pair w1 w2) x
