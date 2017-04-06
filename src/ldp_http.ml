@@ -181,6 +181,8 @@ module type Http =
       ?data:Rdf_graph.graph ->
       ?slug:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val put : ?data:string -> ?mime:string -> ?typ: Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
+    val put_rdf : data: Rdf_graph.graph ->
+      ?typ:Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_non_rdf :
       ?data:string -> ?mime:string -> Iri.t -> Ldp_types.meta Lwt.t
     val patch_with_query : Iri.t -> string -> unit Lwt.t
@@ -378,7 +380,7 @@ module Cached_http (C:Cache) (P:Requests) =
         | 200 | 201 | 204 -> Lwt.return (response_metadata iri (resp, body))
         | n -> error (Post_error (n, iri))
 
-    let post_rdf ?data ?slug ?(typ=Rdf_ldp.c_Resource) iri =
+    let post_rdf ?data ?slug ?(typ=Rdf_ldp.c_RDFSource) iri =
       let data = map_opt Rdf_ttl.to_string data in
       post ?data ?slug ~typ iri
 
@@ -455,6 +457,9 @@ module Cached_http (C:Cache) (P:Requests) =
         match Code.code_of_status resp.Response.status with
         | 200 | 201 | 204 -> Lwt.return (response_metadata iri (resp, body))
         | n -> error (Put_error (n, iri))
+
+    let put_rdf ~data:g ?(typ=Rdf_ldp.c_RDFSource) iri =
+      put ~data:(Rdf_ttl.to_string g) ~mime:mime_turtle ~typ iri
 
     let post_non_rdf ?data ?mime iri =
       put ?data ?mime ~typ: Rdf_ldp.c_NonRDFSource iri

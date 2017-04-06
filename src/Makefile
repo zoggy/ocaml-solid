@@ -41,7 +41,8 @@ COMMON_CMXFILES= \
 	ldp_http.cmx \
 	ldp_cookies.cmx \
 	ldp_containers.cmx \
-	solid_profile.cmx
+	solid_profile.cmx \
+	solid_conf.cmx \
 #	solid_webidrsa.cmx
 
 COMMON_CMOFILES=$(COMMON_CMXFILES:.cmx=.cmo)
