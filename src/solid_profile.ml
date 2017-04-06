@@ -40,10 +40,15 @@ module type S =
   sig
     val get_profile : Iri.t -> profile Lwt.t
     val inbox : profile -> Iri.t option
-    val workspaces : profile -> workspace list
+    val workspaces : ?typ:Iri.t -> profile -> workspace list
     val storages : profile -> Iri.t list
     val name : profile -> string
     val pim : profile -> Rdf_pim.from
+    val preferences_ws : profile -> workspace list
+    val private_ws : profile -> workspace list
+    val public_ws : profile -> workspace list
+    val shared_ws : profile -> workspace list
+    val master_ws : profile -> workspace list
   end
 
 module Make (H: Ldp_http.Http) =
@@ -85,10 +90,20 @@ module Make (H: Ldp_http.Http) =
         List.iter (Rdf_graph.merge g) graphs ;
         Lwt.return g
 
-    let workspaces profile =
+    let workspaces ?typ profile =
       let webid = primary_topic profile in
       let ws = G.iri_objects_of profile
         ~sub:webid ~pred: Rdf_pim.workspace
+      in
+      let ws =
+        match typ with
+          None -> ws
+        | Some typ ->
+            let pred ws =
+              profile.G.exists ~sub: (Rdf_term.Iri ws)
+                ~pred:Rdf_rdf.type_ ~obj:(Rdf_term.Iri typ) ()
+            in
+            List.filter pred ws
       in
       let f acc ws =
         match profile.G.objects_of
@@ -134,4 +149,9 @@ module Make (H: Ldp_http.Http) =
         Rdf_term.Iri sub -> new Rdf_pim.from ~sub profile
       | _ -> new Rdf_pim.from profile
 
+    let preferences_ws = workspaces ~typ: Rdf_pim.c_PreferencesWorkspace
+    let private_ws = workspaces ~typ: Rdf_pim.c_PrivateWorkspace
+    let public_ws = workspaces ~typ: Rdf_pim.c_PublicWorkspace
+    let shared_ws  = workspaces ~typ: Rdf_pim.c_SharedWorkspace
+    let master_ws  = workspaces ~typ: Rdf_pim.c_MasterWorkspace
   end

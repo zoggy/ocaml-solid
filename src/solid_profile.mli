@@ -34,10 +34,16 @@ module type S =
   sig
     val get_profile : Iri.t -> profile Lwt.t
     val inbox : profile -> Iri.t option
-    val workspaces : profile -> workspace list
+    val workspaces : ?typ:Iri.t -> profile -> workspace list
     val storages : profile -> Iri.t list
     val name : profile -> string
     val pim : profile -> Rdf_pim.from
+    val preferences_ws : profile -> workspace list
+    val private_ws : profile -> workspace list
+    val public_ws : profile -> workspace list
+    val shared_ws : profile -> workspace list
+    val master_ws : profile -> workspace list
   end
 
 module Make : Ldp_http.Http -> S
+
