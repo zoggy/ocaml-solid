@@ -38,7 +38,7 @@ let lookup_mime filename =
   else
     Magic_mime.lookup filename
 
-type file_dir = [`File | `Dir | `Unknown]
+type file_dir = [`File | `Dir | `Unknown | `UnknownDir]
 type kind = [file_dir | `Acl of file_dir | `Meta of file_dir]
 type path =
   {
@@ -48,6 +48,16 @@ type path =
     mutable kind : kind ;
     mutable mime : string option ;
   }
+
+let rec string_of_kind (k:kind) =
+  match k with
+  | `Acl x -> "`Acl "^(string_of_kind (x:>kind))
+  | `Meta x -> "`Meta "^(string_of_kind (x:>kind))
+  | `File -> "`File"
+  | `Dir -> "`Dir"
+  | `Unknown -> "`Unknown"
+  | `UnknownDir -> "`UnknownDir"
+
 
 type Ldp_types.error +=
   | Not_a_container of path
@@ -72,25 +82,32 @@ let is_file fname =
   in
   Lwt.return r
 
+let ends_with_dirsep str =
+  let len = String.length str in
+  len > 0 && Filename.check_suffix str Filename.dir_sep
+
 let get_kind fname =
-  match%lwt is_file fname with
-  | None -> Lwt.return `Unknown
-  | Some true when Filename.check_suffix fname acl_suffix ->
-      begin
-        match%lwt is_file (Filename.chop_suffix fname acl_suffix) with
-          None -> Lwt.return (`Acl `Unknown)
-        | Some true -> Lwt.return (`Acl `File)
-        | Some false -> Lwt.return (`Acl `Dir)
-      end
-  | Some true when Filename.check_suffix fname meta_suffix ->
-      begin
-        match%lwt is_file (Filename.chop_suffix fname meta_suffix) with
-          None -> Lwt.return (`Meta `Unknown)
-        | Some true -> Lwt.return (`Meta `File)
-        | Some false -> Lwt.return (`Meta `Dir)
-      end
-  | Some true -> Lwt.return `File
-  | Some false -> Lwt.return `Dir
+  if Filename.check_suffix fname acl_suffix then
+    let nosuf = Filename.chop_suffix fname acl_suffix in
+    match%lwt is_file nosuf with
+      None when ends_with_dirsep nosuf -> Lwt.return (`Acl `UnknownDir)
+    | None -> Lwt.return (`Acl `Unknown)
+    | Some true -> Lwt.return (`Acl `File)
+    | Some false -> Lwt.return (`Acl `Dir)
+  else
+    if Filename.check_suffix fname meta_suffix then
+      let nosuf = Filename.chop_suffix fname meta_suffix in
+      match%lwt is_file nosuf with
+        None when ends_with_dirsep nosuf -> Lwt.return (`Meta `UnknownDir)
+      | None -> Lwt.return (`Meta `Unknown)
+      | Some true -> Lwt.return (`Meta `File)
+      | Some false -> Lwt.return (`Meta `Dir)
+    else
+      match%lwt is_file fname with
+        None when ends_with_dirsep fname -> Lwt.return `UnknownDir
+      | None -> Lwt.return `Unknown
+      | Some true -> Lwt.return `File
+      | Some false -> Lwt.return `Dir
 
 let debug_p p =
   Server_log._debug_lwt
@@ -107,6 +124,9 @@ let mk_path root_iri root_dir rel =
   let%lwt kind =
     let fname = List.fold_left Filename.concat root_dir rel in
     get_kind fname
+  in
+  let%lwt () = Server_log._debug_lwt
+    (fun f -> f "kind = %s" (string_of_kind kind))
   in
   let rel =
     let chop_ext =
@@ -149,12 +169,14 @@ let path_to_filename p =
   let fname = List.fold_left Filename.concat p.root_dir p.rel in
   match p.kind with
     `Unknown -> fname
-  | `Dir -> fname ^ "/"
+  | `UnknownDir | `Dir -> fname ^ "/"
   | `File -> fname
-  | `Acl `Dir -> Filename.concat fname acl_suffix
+  | `Acl `Dir
+  | `Acl `UnknownDir -> Filename.concat fname acl_suffix
   | `Acl `File
   | `Acl `Unknown -> fname ^ acl_suffix
-  | `Meta `Dir -> Filename.concat fname meta_suffix
+  | `Meta `Dir
+  | `Meta `UnknownDir -> Filename.concat fname meta_suffix
   | `Meta `File
   | `Meta `Unknown -> fname ^ meta_suffix
 
@@ -177,12 +199,14 @@ let iri =
     let iri = app p.root_iri p.rel in
     match p.kind with
       `Unknown -> iri
-    | `Dir -> app iri [""]
+    | `UnknownDir | `Dir -> app iri [""]
     | `File -> iri
-    | `Acl `Dir -> app iri [acl_suffix]
+    | `Acl `Dir
+    | `Acl `UnknownDir-> app iri [acl_suffix]
     | `Acl `File
     | `Acl `Unknown -> add_file_ext iri acl_suffix
-    | `Meta `Dir -> app iri [meta_suffix]
+    | `Meta `Dir
+    | `Meta `UnknownDir -> app iri [meta_suffix]
     | `Meta `File
     | `Meta `Unknown -> add_file_ext iri meta_suffix
 
@@ -227,7 +251,7 @@ let remove_ext p =
 
 let ext_path (f : file_dir -> kind) p =
   match p.kind with
-    (`Unknown | `Dir | `File) as x
+    (`Unknown | `UnknownDir | `Dir | `File) as x
   | `Meta x | `Acl x ->
       let kind =  f x in
       if kind = p.kind then
@@ -241,7 +265,7 @@ let noext_path = ext_path (fun x -> (x:>kind))
 
 let is_graph_path p =
   match p.kind with
-  | `Unknown | `Dir | `File -> false
+  | `Unknown | `UnknownDir | `Dir | `File -> false
   | `Acl _ | `Meta _ -> true
 
 (* CHOICE: acl and meta are stored in turtle format *)
@@ -324,12 +348,14 @@ let parent p =
   | h :: q, (`Dir | `File) ->
       let rel = List.rev q in
       Lwt.return_some { p with rel ; kind = `Dir ; mime = None }
-  | h :: q, (`Unknown | `Acl `Unknown | `Acl `File | `Meta `Unknown | `Meta `File) ->
+  | h :: q, (`Unknown | `UnknownDir | `Acl `Unknown | `Acl `File | `Meta `Unknown | `Meta `File) ->
       let rel = List.rev q in
       let%lwt kind = get_kind (mk_filename rel) in
       Lwt.return_some { p with rel ; kind ; mime = None }
   | _, (`Acl `Dir | `Meta `Dir) ->
       Lwt.return_some { p with kind = `Dir ; mime = None }
+  | _, (`Acl `UnknownDir | `Meta `UnknownDir) ->
+      Lwt.return_some { p with kind = `UnknownDir ; mime = None }
 
 let container_graph_of_dir base_path dirname can_read =
   (* List only items the user has read access, waiting for
@@ -536,6 +562,10 @@ let post_file path ?mime write =
   let%lwt () =
     match mime with
     | Some mime when ok && not (is_graph_path path) ->
+        let%lwt () = Server_log._debug_lwt
+          (fun f -> f "%s is graph path: %b"
+             abs_file (is_graph_path path))
+        in
         set_path_format path mime
     | _ -> Lwt.return_unit
   in
@@ -549,7 +579,7 @@ let rec mkdirp =
       | `Dir -> Lwt.return acc
       | `File | `Acl _| `Meta _ ->
           Ldp_types.fail (Not_a_container path)
-      | `Unknown ->
+      | `Unknown | `UnknownDir ->
           parent path >>= list (path :: acc)
   in
   let rec create = function
@@ -571,19 +601,27 @@ let rec mkdirp =
   fun path ->
     match%lwt list [] path with
     | exception e -> Lwt.fail e
-    | l -> create l
+    | l ->
+        let%lwt () = Server_log._debug_lwt
+          (fun f -> f "mkdirp: create [%s]"
+            (String.concat ", "
+              (List.map (fun p -> String.concat "|" p.rel) l)))
+        in
+        create l
 
 let put_file path ?mime write =
   let%lwt ok =
     match path.kind with
       `Dir -> Lwt.return false
-    | `File | `Acl _ | `Meta _ ->
-        post_file path ?mime write
-    | `Unknown ->
+    | `Unknown | `UnknownDir
+    | `Acl (`Unknown | `UnknownDir)
+    | `Meta (`Unknown | `UnknownDir) ->
         if%lwt parent path >>= mkdirp then
           post_file path ?mime write
         else
           Lwt.return_false
+    | `File | `Acl (`File | `Dir) | `Meta (`File | `Dir) ->
+        post_file path ?mime write
   in
   if ok then
     (* update kind if it was unknown *)
@@ -627,7 +665,7 @@ let path_last_modified p =
 
 let path_can_be_deleted p =
   match p.kind with
-  | `Unknown -> Lwt.return_false
+  | `Unknown | `UnknownDir -> Lwt.return_false
   | `Acl _
   | `Meta _
   | `File -> Lwt.return_true
@@ -653,7 +691,7 @@ let path_can_be_deleted p =
 
 let delete_path p =
   match p.kind with
-  | `Unknown -> Lwt.return_false
+  | `Unknown | `UnknownDir -> Lwt.return_false
   | `Acl _
   | `Meta _ -> bool_of_unix_call Lwt_unix.unlink (path_to_filename p)
   | `File ->

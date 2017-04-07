@@ -83,7 +83,7 @@ let rd_add_acl_meta rd path =
          in
          h)
         rd
-  | `Meta _ | `Unknown -> rd
+  | `Meta _ | `Unknown | `UnknownDir -> rd
 
 let content_type_of_rd rd =
   let h = rd.Wm.Rd.req_headers in
@@ -177,7 +177,7 @@ let graph_of_request rd path =
 let path_to_patch path =
   match Server_fs.kind path with
     `Acl _ | `Meta _ -> Lwt.return path
-  | `Dir | `Unknown -> Lwt.return (Server_fs.meta_path path)
+  | `Dir | `Unknown | `UnknownDir -> Lwt.return (Server_fs.meta_path path)
   | `File ->
       match%lwt Server_fs.path_mime path with
       | Some mime when is_handled_rdf_mime mime -> Lwt.return path
@@ -187,7 +187,7 @@ let apply_patch path str =
   let query =  Rdf_sparql.query_from_string str in
   let%lwt graph_path =
     match Server_fs.kind path with
-      `Dir | `Unknown -> Lwt.return (Server_fs.meta_path path)
+      `Dir | `Unknown | `UnknownDir -> Lwt.return (Server_fs.meta_path path)
     | `File ->
         begin
           match%lwt Server_fs.path_mime path with
@@ -236,7 +236,8 @@ class r real_meth ?(read_only=false)
     method resource_exists rd =
       let (exists, rd) =
         match Server_fs.kind path with
-        | `Acl `Unknown | `Meta `Unknown | `Unknown ->
+        | `Acl `Unknown | `Meta `Unknown | `Unknown
+        | `Acl `UnknownDir | `Meta `UnknownDir | `UnknownDir ->
             let rd =
               match real_meth with
                 `GET | `HEAD | `OPTIONS ->
@@ -441,6 +442,8 @@ class r real_meth ?(read_only=false)
           end
       | `Unknown ->
           Wm.continue ["*/*", self#to_raw] rd
+      | `UnknownDir ->
+          Wm.continue [] rd
 
     method content_types_accepted rd =
       match real_meth, Server_fs.kind path with
