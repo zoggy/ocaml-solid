@@ -47,14 +47,15 @@ let level_of_string s =
   | "debug" | "4" -> Debug
   | _ -> failwith (Printf.sprintf "Bad log level value: %S" s)
 
+let string_of_level = function
+  | App -> "app"
+  | Error -> "error"
+  | Warning -> "warning"
+  | Info -> "info"
+  | Debug -> "debug"
+
 let level_wrapper =
-  let to_json ?with_doc = function
-    App -> `String "app"
-  | Error -> `String "error"
-  | Warning -> `String "warning"
-  | Info -> `String "info"
-  | Debug -> `String "debug"
-  in
+  let to_json ?with_doc l = `String (string_of_level l) in
   let from_json ?(def=App) = function
   `String s -> level_of_string s
   | _ -> prerr_endline "bad value";def

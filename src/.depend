@@ -10,8 +10,8 @@ ldp_curl.cmo : ldp_types.cmi ldp_http.cmi ldp_cookies.cmi ldp_cache.cmi \
     ldp_curl.cmi
 ldp_curl.cmx : ldp_types.cmx ldp_http.cmx ldp_cookies.cmx ldp_cache.cmx \
     ldp_curl.cmi
-ldp_http.cmo : ldp_types.cmi ldp_http.cmi
-ldp_http.cmx : ldp_types.cmx ldp_http.cmi
+ldp_http.cmo : ldp_types.cmi ldp_log.cmi ldp_http.cmi
+ldp_http.cmx : ldp_types.cmx ldp_log.cmx ldp_http.cmi
 ldp_js.cmo : ldp_js.cmi
 ldp_js.cmx : ldp_js.cmi
 ldp_log.cmo : ldp_log.cmi
@@ -43,21 +43,25 @@ server_http_tls.cmx : server_log.cmx server_conf.cmx server_auth.cmx \
 server_log.cmo : ldp_log.cmi server_log.cmi
 server_log.cmx : ldp_log.cmx server_log.cmi
 server_main.cmo : server_webmachine.cmo server_user.cmo server_log.cmi \
-    server_http_tls.cmo server_fs_route.cmo server_conf.cmo server_auth.cmo
+    server_http_tls.cmo server_fs_route.cmo server_conf.cmo server_auth.cmo \
+    ldp_log.cmi
 server_main.cmx : server_webmachine.cmx server_user.cmx server_log.cmx \
-    server_http_tls.cmx server_fs_route.cmx server_conf.cmx server_auth.cmx
+    server_http_tls.cmx server_fs_route.cmx server_conf.cmx server_auth.cmx \
+    ldp_log.cmx
 server_openssl.cmo : server_log.cmi server_fs.cmo
 server_openssl.cmx : server_log.cmx server_fs.cmx
 server_page.cmo :
 server_page.cmx :
 server_user.cmo : server_openssl.cmo server_log.cmi server_fs.cmo \
-    server_conf.cmo ldp_http.cmi
+    ldp_http.cmi
 server_user.cmx : server_openssl.cmx server_log.cmx server_fs.cmx \
-    server_conf.cmx ldp_http.cmx
+    ldp_http.cmx
 server_webmachine.cmo : server_page.cmo server_log.cmi server_fs.cmo \
     server_acl.cmo ldp_types.cmi ldp_http.cmi cohttp_tls.cmo
 server_webmachine.cmx : server_page.cmx server_log.cmx server_fs.cmx \
     server_acl.cmx ldp_types.cmx ldp_http.cmx cohttp_tls.cmx
+solid_conf.cmo : ldp_log.cmi solid_conf.cmi
+solid_conf.cmx : ldp_log.cmx solid_conf.cmi
 solid_profile.cmo : ldp_types.cmi ldp_http.cmi solid_profile.cmi
 solid_profile.cmx : ldp_types.cmx ldp_http.cmx solid_profile.cmi
 solid_tool_common.cmo : ldp_types.cmi ldp_tls.cmi ldp_curl.cmi \
@@ -91,6 +95,7 @@ ldp_misc.cmi :
 ldp_tls.cmi : ldp_http.cmi
 ldp_types.cmi :
 server_log.cmi :
+solid_conf.cmi :
 solid_profile.cmi : ldp_http.cmi
 solid_tool_common.cmi : ldp_http.cmi
 solid_updates.cmi :
