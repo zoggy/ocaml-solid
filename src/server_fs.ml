@@ -605,12 +605,12 @@ let sha256 str =
   t#put_string hash#result ;
   t#get_string
 
-let path_etag p =
+let path_etag ?(accept="") p =
   let file = path_to_filename p in
   try
     let%lwt st = Lwt_unix.stat file in
     let mtime = string_of_float st.Unix.st_mtime in
-    Lwt.return_some (sha256 mtime)
+    Lwt.return_some (sha256 (mtime^accept))
   with _ -> Lwt.return_none
 
 let date_rfc1123_fmt = "%a, %d %b %Y %T GMT"

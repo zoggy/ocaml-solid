@@ -219,7 +219,8 @@ class r real_meth ?(read_only=false)
     inherit [Cohttp_lwt_body.t] Wm.resource
 
     method generate_etag rd =
-      let%lwt opt = Server_fs.path_etag path in
+      let accept = Cohttp.Header.get rd.Wm.Rd.req_headers "accept" in
+      let%lwt opt = Server_fs.path_etag ?accept path in
       Wm.continue opt rd
 
     method last_modified rd =
@@ -633,9 +634,10 @@ class r real_meth ?(read_only=false)
            in
            let h = H.add h "Access-Control-Allow-Origin" origin in
            let h = H.add h "Access-Control-Allow-Methods" allowed_mets in
-           let h = H.add h "Access-Control-Allow-Headers"
-             (match H.get rd.Wm.Rd.req_headers "access-control-request-headers" with
-                None -> "" | Some s -> s)
+           let h =
+             match H.get rd.Wm.Rd.req_headers "access-control-request-headers" with
+               None -> h
+             | Some s -> H.add h "Access-Control-Allow-Headers" s
            in
            let h = H.add h "Access-Control-Allow-Credentials" "true" in
            let h = H.add h
