@@ -367,6 +367,11 @@ class r real_meth ?(read_only=false)
             else
               Server_fs.available_file
           in
+          let%lwt() = Server_log._debug_lwt
+            (fun f -> f "content-length: %d"
+               ((function None -> -1 | Some n -> int_of_string n)
+                 (Cohttp.Header.get rd.Wm.Rd.req_headers "content-length")))
+          in
           match%lwt avail ?slug path with
           | None -> Wm.continue false rd
           | Some newpath ->
