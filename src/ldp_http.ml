@@ -166,7 +166,7 @@ module type Http =
     val post :
       ?data:string ->
       ?mime:string ->
-      ?slug:string -> typ:Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
+      ?slug:string -> ?typ:Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
     val post_container : ?data: Rdf_graph.graph ->
       ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
     val post_direct_container : ?data: Rdf_graph.graph ->
@@ -353,11 +353,15 @@ module Cached_http (C:Cache) (P:Requests) =
       | _ ->
           Lwt.return (Non_rdf (ct, Some body))
 
-    let post ?data ?(mime=mime_turtle) ?slug ~typ iri =
+    let post ?data ?(mime=mime_turtle) ?slug ?typ iri =
       let headers =
         let h = Header.init_with "Content-type" mime in
-        let h = Header.add h
-          "Link" (Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string typ))
+        let h =
+          match typ with
+          | None -> h
+          | Some typ ->
+              Header.add h
+                "Link" (Printf.sprintf "<%s>; rel=\"type\"" (Iri.to_string typ))
         in
         let h =
           match slug with

@@ -115,7 +115,7 @@ module type Http =
     val post :
       ?data:string ->
       ?mime:string ->
-      ?slug:string -> typ:Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
+      ?slug:string -> ?typ:Iri.t -> Iri.t -> Ldp_types.meta Lwt.t
 
     val post_container : ?data: Rdf_graph.graph ->
       ?slug:string -> Iri.t -> Ldp_types.meta Lwt.t
