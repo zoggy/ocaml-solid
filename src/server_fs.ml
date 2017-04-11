@@ -457,13 +457,15 @@ let iri_append_path iri strings =
   Iri.with_path iri p
 
 let available_dir_entry k =
-  let rec iter dir slug cpt =
+  let rec iter dir slug ext cpt =
     let basename =
-      if cpt = 0 then slug else Printf.sprintf "%s-%d" slug cpt
+      if cpt = 0
+      then slug^ext
+      else Printf.sprintf "%s-%d%s" slug cpt ext
     in
     let file = Filename.concat dir basename in
     if%lwt Lwt_unix.file_exists file then
-      iter dir slug (cpt+1)
+      iter dir slug ext (cpt+1)
     else
       Lwt.return basename
   in
@@ -475,7 +477,14 @@ let available_dir_entry k =
     | `Dir ->
         begin
           let dir = path_to_filename path in
-          let%lwt basename = iter dir slug (if slug = "" then 1 else 0) in
+          let (slug, ext) =
+            try
+              let p = String.rindex slug '.' in
+              let len = String.length slug in
+              String.sub slug 0 p, String.sub slug p (len-p)
+            with Not_found -> slug, ""
+          in
+          let%lwt basename = iter dir slug ext (if slug = "" then 1 else 0) in
           let rel = path.rel @ [ basename ] in
           Lwt.return_some
             { root_dir = path.root_dir; rel ;
