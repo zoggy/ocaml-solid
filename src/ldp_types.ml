@@ -71,6 +71,7 @@ let () = Printexc.register_printer
 type error +=
 | Invalid_method of string
 | Missing_pred of Iri.t * Iri.t
+| Missing_pred_iri of Iri.t * Iri.t
 | Request_error of Iri.t * string
 | Parse_error of Iri.t * exn
 | Unsupported_format of Iri.t * string
@@ -80,6 +81,9 @@ let () = register_string_of_error
      | Invalid_method str -> Printf.sprintf "Invalid method %S" str
      | Missing_pred (sub, pred) ->
          Printf.sprintf "%s has no relation with predicate %s"
+           (Iri.to_string sub) (Iri.to_string pred)
+     | Missing_pred_iri (sub, pred) ->
+         Printf.sprintf "%s has no relation to an IRI with predicate %s"
            (Iri.to_string sub) (Iri.to_string pred)
      | Request_error (iri, msg) ->
          Printf.sprintf "%s: %s"

@@ -33,6 +33,7 @@ type workspace =
 module type S =
   sig
     val get_profile : Iri.t -> profile Lwt.t
+    val webid : profile -> Iri.t
     val inbox : profile -> Iri.t option
     val workspaces : ?typ:Iri.t -> profile -> workspace list
     val storages : profile -> Iri.t list

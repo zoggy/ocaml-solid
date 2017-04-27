@@ -58,6 +58,7 @@ val register_string_of_error : ((error -> string) -> error -> string) -> unit
 type error +=
 | Invalid_method of string
 | Missing_pred of Iri.t * Iri.t
+| Missing_pred_iri of Iri.t * Iri.t
 | Request_error of Iri.t * string (* with an exception ?? *)
 | Parse_error of Iri.t * exn
 | Unsupported_format of Iri.t * string
