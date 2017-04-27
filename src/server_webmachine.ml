@@ -314,8 +314,8 @@ class r real_meth ?(read_only=false)
         rights_for_path user p
       in
       let%lwt () = log
-        (fun m -> m "rights %d to user %s on %s"
-          rights
+        (fun m -> m "rights %s to user %s on %s"
+          (Rdf_webacl.rights_to_string rights)
           (match user with None -> "NONE" | Some iri -> Iri.to_string iri)
           (Iri.to_string (Server_fs.iri path)))
       in
@@ -326,7 +326,7 @@ class r real_meth ?(read_only=false)
                so a 403 would make the browser block the request *)
             Lwt.return_true
         | `GET (* | `OPTIONS *) | `HEAD ->
-            Lwt.return (Server_acl.has_read rights)
+            Lwt.return (Rdf_webacl.has_read rights)
         | `POST ->
             let%lwt is_container = Server_fs.path_is_container path in
             let%lwt () = log
@@ -335,15 +335,15 @@ class r real_meth ?(read_only=false)
             in
             Lwt.return
               (is_container &&
-               (Server_acl.has_write rights || Server_acl.has_append rights)
+               (Rdf_webacl.has_write rights || Rdf_webacl.has_append rights)
               )
         | `DELETE ->
-            if Server_acl.has_write rights then
+            if Rdf_webacl.has_write rights then
              Server_fs.path_can_be_deleted path
             else
               Lwt.return_false
         | `PUT | `PATCH ->
-            Lwt.return (Server_acl.has_write rights)
+            Lwt.return (Rdf_webacl.has_write rights)
         | _ -> Lwt.return_true
       in
       Wm.continue (not ok) rd
@@ -548,13 +548,13 @@ class r real_meth ?(read_only=false)
       Wm.continue body rd
 
     method private to_container_ttl rd =
-      let can_read p = rights_for_path user p >|= Server_acl.has_read in
+      let can_read p = rights_for_path user p >|= Rdf_webacl.has_read in
       let%lwt g = Server_fs.create_container_graph path can_read in
       let body = `String (Rdf_ttl.to_string ~compact: true g) in
       self#to_container body rd
 
     method private to_container_xmlrdf rd =
-      let can_read p = rights_for_path user p >|= Server_acl.has_read in
+      let can_read p = rights_for_path user p >|= Rdf_webacl.has_read in
       let%lwt g = Server_fs.create_container_graph path can_read in
       let body = `String (Rdf_xml.to_string g) in
       self#to_container body rd

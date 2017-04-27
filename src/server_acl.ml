@@ -31,24 +31,6 @@ open Rdf_term
 
 (** See {{:https://github.com/solid/web-access-control-spec#individual-resource-acls} Solid WAC} *)
 
-type rights = int
-let no_right = 0
-
-let add_read = (lor) 1
-let rem_read = (land) (lnot 1)
-let has_read r = r land 1 <> 0
-let add_write = (lor) 2
-let rem_write = (land) (lnot 2)
-let has_write r = r land 2 <> 0
-let add_append = (lor) 4
-let rem_append = (land) (lnot 4)
-let has_append r = r land 4 <> 0
-let add_control = (lor) 8
-let rem_control = (land) (lnot 8)
-let has_control r = r land 8 <> 0
-
-let all_rights = add_read (add_write (add_append (add_control no_right)))
-
 (* FIXME: acl:defautlForNew will be renamed acl:default *)
 let auths ~default g iri =
   Server_log._debug (fun m -> m "%s" (Rdf_ttl.to_string g));
@@ -63,19 +45,6 @@ let auths ~default g iri =
   List.filter filter
     (iri_subjects_of g ~pred:Rdf_rdf.type_ ~obj: (Iri acl_c_Authorization))
 
-let add_rights_of_modes =
-  List.fold_left
-    (fun acc mode ->
-       if Iri.equal mode acl_c_Read then
-         add_read acc
-       else if Iri.equal mode acl_c_Write then
-          add_write acc
-         else if Iri.equal mode acl_c_Append then
-             add_append acc
-           else if Iri.equal mode acl_c_Control then
-               add_control acc
-             else acc)
-
 let gather_rights g user acc auth =
   let sub = Iri auth in
   let modes = iri_objects_of g ~sub ~pred:acl_mode in
@@ -86,7 +55,7 @@ let gather_rights g user acc auth =
         None -> false
       | Some user -> g.exists ~sub ~pred:acl_agent ~obj:(Iri user) ()
   then
-    add_rights_of_modes acc modes
+    Rdf_webacl.add_rights_of_modes acc modes
   else
     acc
 
@@ -100,7 +69,7 @@ let rights ~default user g iri =
       (String.concat "\n  " (List.map Iri.to_string auths))
       )
   in
-  Lwt.return (List.fold_left (gather_rights g user) no_right auths)
+  Lwt.return (List.fold_left (gather_rights g user) Rdf_webacl.no_right auths)
 
 let rights_for_path user p =
   let rec iter ~default p =
@@ -114,8 +83,8 @@ let rights_for_path user p =
               (* add control if control right is provided on x *)
               let p2 = Server_fs.noext_path p in
               let%lwt r2 = rights ~default user g (Server_fs.iri p2) in
-              if has_control r2 then
-                Lwt.return all_rights
+              if Rdf_webacl.has_control r2 then
+                Lwt.return Rdf_webacl.all_rights
               else
                 r
           | _ ->
@@ -125,7 +94,7 @@ let rights_for_path user p =
         match%lwt Server_fs.parent p with
           None -> Server_log._err
             (fun m -> m "No root acl in %s" (Server_fs.path_to_filename p));
-            Lwt.return no_right
+            Lwt.return Rdf_webacl.no_right
         | Some parent -> iter ~default: true parent
   in
   iter ~default: false p
@@ -136,7 +105,7 @@ let fold_listings user path acc basename =
     `File ->
       begin
         let%lwt rights = rights_for_path user p in
-        if has_read rights then
+        if Rdf_webacl.has_read rights then
           let absfile = Server_fs.path_to_filename p in
           let%lwt mime =
             match%lwt Server_fs.path_mime p with
@@ -160,7 +129,7 @@ let available_container_listings user path =
             let%lwt l = Lwt_list.fold_left_s
               (fold_listings user path) [] files
             in
-            let can_read p = rights_for_path user p >|= has_read in
+            let can_read p = rights_for_path user p >|= Rdf_webacl.has_read in
             let l = l @ [Server_page.mime_xhtml,
               fun () -> Server_fs.default_container_listing path can_read]
             in
