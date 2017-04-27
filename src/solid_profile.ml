@@ -146,7 +146,7 @@ module Make (H: Ldp_http.Http) =
 
     let pim profile =
       match primary_topic profile with
-        Rdf_term.Iri sub -> new Rdf_pim.from ~sub profile
+        (Rdf_term.Iri _) as sub -> new Rdf_pim.from ~sub profile
       | _ -> new Rdf_pim.from profile
 
     let preferences_ws = workspaces ~typ: Rdf_pim.c_PreferencesWorkspace
