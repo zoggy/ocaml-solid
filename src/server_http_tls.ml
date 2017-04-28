@@ -57,7 +57,7 @@ let server http_handler =
     X509_lwt.authenticator
      (match Ocf.get Server_conf.server_ca with
          None -> `No_authentication_I'M_STUPID
-       | Some file -> `Ca_file file)       
+       | Some file -> `Ca_file file)
   in
   let tls_server = Tls.Config.server
     ~reneg:true
@@ -84,7 +84,11 @@ let server http_handler =
     in
     let uri = req |> Request.uri in
     let uri_s = uri |> Uri.to_string in
-    let%lwt () = Server_log._debug_lwt (fun m -> m "New query: %s" uri_s) in
+    let%lwt () = Server_log._debug_lwt
+      (fun m -> m "New query: %s %s"
+         (req |> Request.meth |> Code.string_of_method) uri_s
+      )
+    in
     http_handler ?user req body
     (*match Uri.path uri with
         "/private" ->
