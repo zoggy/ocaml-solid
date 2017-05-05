@@ -130,7 +130,7 @@ let available_container_listings user path =
               (fold_listings user path) [] files
             in
             let can_read p = rights_for_path user p >|= Rdf_webacl.has_read in
-            let l = l @ [Server_page.mime_xhtml,
+            let l = l @ [Ldp_http.mime_xhtml,
               fun () -> Server_fs.default_container_listing path can_read]
             in
             Lwt.return l

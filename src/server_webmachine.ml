@@ -37,7 +37,7 @@ end
 
 let log f = Server_log._debug_lwt f
 
-let mime_xhtml = Server_page.mime_xhtml
+let mime_xhtml = Ldp_http.mime_xhtml
 let mime_xhtml_charset = Server_page.mime_xhtml_charset
 let mime_html = "text/html"
 

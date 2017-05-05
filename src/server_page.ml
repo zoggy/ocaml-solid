@@ -24,8 +24,7 @@
 
 (** *)
 
-let mime_xhtml = "application/xhtml+xml"
-let mime_xhtml_charset = mime_xhtml^";charset=utf-8"
+let mime_xhtml_charset = Ldp_http.mime_xhtml^";charset=utf-8"
 
 let page title contents =
   let module Xh = Xtmpl_xhtml in

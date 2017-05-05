@@ -43,6 +43,7 @@ val mime_turtle : string
 val mime_xmlrdf : string
 val mime_sparql_update : string
 val mime_text : string
+val mime_xhtml : string
 
 val type_is_container : Iri.t -> bool
 

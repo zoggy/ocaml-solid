@@ -67,6 +67,7 @@ let mime_turtle = "text/turtle"
 let mime_xmlrdf = "application/rdf+xml"
 let mime_sparql_update = "application/sparql-update"
 let mime_text = "text/plain"
+let mime_xhtml = "application/xhtml+xml"
 
 let get_link links rel =
   try Some (List.assoc rel links)
