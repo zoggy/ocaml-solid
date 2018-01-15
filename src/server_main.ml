@@ -75,7 +75,7 @@ let options =
          | str -> Some (Ldp_log.level_of_string str)
        in
        Ocf.set Server_conf.global_log_level level),
-    "[|debug|info|warning|error|app] set global log level" ;
+    "[debug|info|warning|error|app] set global log level" ;
   ]
 
 let usage = Printf.sprintf "Usage: %s [options]\nwhere options are:" Sys.argv.(0)

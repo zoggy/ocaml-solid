@@ -241,7 +241,7 @@ class r real_meth ?(read_only=false)
             let rd =
               match real_meth with
                 `GET | `HEAD | `OPTIONS ->
-                  error_rd rd "Not found" "Ressources does not exist"
+                  error_rd rd "Not found" "Ressource does not exist"
               | _ -> rd
             in
             (false, rd)
@@ -305,7 +305,7 @@ class r real_meth ?(read_only=false)
     method forbidden rd =
       let%lwt rights =
         let%lwt p =
-          (* when patchin containers or non (xml/rdf or turtle),
+          (* when patching containers or non (xml/rdf or turtle),
              compute the right on ,meta path instead of path *)
           match real_meth with
           | `PATCH -> path_to_patch path
@@ -675,7 +675,7 @@ class r real_meth ?(read_only=false)
 let http_handler ?user request body =
   let uri = Cohttp.Request.uri request in
   (* since webmachine does not support PATCH yet, map it
-    to PUT but keep passe the real method in paramter
+    to PUT but pass the real method in paramter
     of our resource *)
   let met = Cohttp.Request.meth request in
   let request =
