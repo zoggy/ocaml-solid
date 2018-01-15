@@ -152,7 +152,7 @@ let mk_path root_iri root_dir rel =
 let path_of_uri uri =
   match Server_fs_route.route (Ocf.get Server_conf.storage_root) uri with
   | None -> Ldp_types.fail (Missing_route uri)
-  | Some (root_iri_path, root_dir, rel, ro) ->
+  | Some (root_iri_path, root_dir, rel, ro, git) ->
       let root_iri =
         Iri.iri ?scheme:(Uri.scheme uri)
           ?user:(Uri.user uri)
@@ -161,7 +161,7 @@ let path_of_uri uri =
           ~path:(Iri.Absolute root_iri_path) ()
       in
       let%lwt p = mk_path root_iri root_dir rel in
-      Lwt.return (p, ro)
+      Lwt.return (p, ro, git)
 
 let append_rel p strings = mk_path p.root_iri p.root_dir (p.rel @ strings)
 

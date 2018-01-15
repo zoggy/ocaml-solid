@@ -131,7 +131,7 @@ let mk_templates root_path ~name ~cert_label ~vars ~profile webid =
   let%lwt () = Server_log._debug_lwt (fun f -> f "%s" "after replace_var") in
   let mk (uri, mime, template) =
     let content = List.fold_left replace_var template vars in
-    let%lwt (path,_ro) = Server_fs.path_of_uri (Uri.of_string uri) in
+    let%lwt (path,_ro,_git) = Server_fs.path_of_uri (Uri.of_string uri) in
     let%lwt () =
       match mime with
       Some s when s = Ldp_http.mime_turtle ->
@@ -205,7 +205,7 @@ let add ?webid ?(name="User name") ?(cert_label=name) ?cert ~profile root_uri =
           None -> Lwt.fail_with "No webid in PEM file"
         | Some id -> Lwt.return (id, vars)
   in
-  let%lwt (root_path,_ro) = Server_fs.path_of_uri (Uri.of_string root_uri) in
+  let%lwt (root_path,_ro,_git) = Server_fs.path_of_uri (Uri.of_string root_uri) in
   let root_dir = Server_fs.path_to_filename root_path in
   if Sys.file_exists root_dir then
     Lwt.fail_with (Printf.sprintf "Directory %s exists" root_dir)

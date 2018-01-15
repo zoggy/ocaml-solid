@@ -127,6 +127,8 @@ SERVER_CMXFILES=\
 	server_fs.cmx \
 	server_acl.cmx \
 	server_webmachine.cmx \
+	server_git.cmx \
+	server_handler.cmx \
 	server_openssl.cmx \
 	server_user.cmx \
 	server_main.cmx

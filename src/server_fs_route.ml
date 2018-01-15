@@ -54,7 +54,8 @@ let get_group g id =
 type rule =
   { host : Re.re option ;
     path : Re.re option ;
-    read_only: bool ;
+    read_only : bool ;
+    git : bool ;
     root : string ;
   }
 
@@ -167,7 +168,7 @@ let try_rule root uri r =
             (fun f -> f "Route: root_iri_path=%S\nroot_dir=%S\nrel=%S"
                (String.concat "|" root_iri_path) root_dir
                  (String.concat "|" rel));
-          Some (root_iri_path, root_dir, rel, r.read_only)
+          Some (root_iri_path, root_dir, rel, r.read_only, r.git)
 
 let route root uri =
   match !rules with
@@ -179,7 +180,7 @@ let route root uri =
       let path = List.map Uri.pct_decode path in
       let path = normalize path in
       match rules with
-      | [] ->  Some ([], root, path, false)
+      | [] ->  Some ([], root, path, false, false)
       | rules ->
           let path = List.map Uri.pct_encode path in
           let path = "/"^(String.concat "/" path) in
@@ -201,6 +202,7 @@ let init l =
          path = map (fun x -> Re.compile (Re_pcre.re x)) r.Server_conf.path ;
          root = r.Server_conf.root ;
          read_only = r.Server_conf.read_only ;
+         git = r.Server_conf.git ;
        })
     l
   in

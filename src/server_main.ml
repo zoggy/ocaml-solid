@@ -98,7 +98,7 @@ let main () =
             (fun m -> m "Starting HTTPS server on port %d"
                (Ocf.get Server_conf.port))
           in
-          Server_http_tls.server Server_webmachine.http_handler
+          Server_http_tls.server Server_handler.http_handler
 
 let () =
   Logs.set_reporter (Server_log.lwt_reporter ());

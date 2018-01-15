@@ -58,6 +58,7 @@ type fs_map_rule = {
     path : string option [@ocf Ocf.Wrapper.(option string), None] ;
     root : string [@ocf Ocf.Wrapper.string, ""] ;
     read_only : bool [@ocf Ocf.Wrapper.bool, false] ;
+    git : bool [@ocf Ocf.Wrapper.bool, false] ;
   } [@@ocf]
 
 let storage_rules = Ocf.list fs_map_rule_wrapper
