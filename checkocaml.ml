@@ -895,9 +895,11 @@ let _ =
 
 let _ = !print "\n### checking required tools and libraries ###\n"
 
-let _ = check_ocamlfind_package conf "cohttp.js";;
-let _ = check_ocamlfind_package conf "lwt.ppx";;
-let _ = check_ocamlfind_package conf ~min_version: [0;10;0] "rdf";;
+let _ = check_ocamlfind_package conf "cohttp-lwt-jsoo";;
+let _ = check_ocamlfind_package conf "cohttp-lwt-unix";;
+let _ = check_ocamlfind_package conf "lwt_ppx";;
+let _ = check_ocamlfind_package conf "js_of_ocaml-ppx";;
+let _ = check_ocamlfind_package conf ~min_version: [0;12;0] "rdf";;
 let _ = check_ocamlfind_package conf "ppx_sexp_conv";;
 let _ = check_ocamlfind_package conf "tls"
 let _ = check_ocamlfind_package conf "curl"

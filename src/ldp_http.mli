@@ -55,18 +55,18 @@ val is_container : ?iri: Iri.t -> Rdf_graph.graph -> bool
 module type Requests =
   sig
     val dbg : string -> unit Lwt.t
-    val call: ?body: Cohttp_lwt_body.t -> ?chunked: bool ->
-      ?headers: Header.t -> Code.meth -> Iri.t -> (Response.t * Cohttp_lwt_body.t) Lwt.t
+    val call: ?body: Cohttp_lwt.Body.t -> ?chunked: bool ->
+      ?headers: Header.t -> Code.meth -> Iri.t -> (Response.t * Cohttp_lwt.Body.t) Lwt.t
   end
 
-val response_metadata : Iri.t -> (Response.t * Cohttp_lwt_body.t) -> Ldp_types.meta
+val response_metadata : Iri.t -> (Response.t * Cohttp_lwt.Body.t) -> Ldp_types.meta
 
 module type Cache =
   sig
     val clear : unit -> unit Lwt.t
     val get :
       (?headers: Header.t -> Iri.t ->
-       (Response.t * Cohttp_lwt_body.t) Lwt.t) ->
+       (Response.t * Cohttp_lwt.Body.t) Lwt.t) ->
         ?headers:Header.t -> Iri.t -> (Response.t * string) Lwt.t
   end
 

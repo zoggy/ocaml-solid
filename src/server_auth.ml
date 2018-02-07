@@ -84,7 +84,7 @@ let get iri =
 let iri_of_cert cert =
   match List.find
     (function `URI _ -> true | _ -> false)
-    (X509.subject_alt_names cert)
+    (X509.Extension.subject_alt_names cert)
   with
   | exception Not_found -> None
   | `URI str -> Some (Iri.of_string str)

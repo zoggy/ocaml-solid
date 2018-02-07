@@ -58,7 +58,6 @@ let rec string_of_kind (k:kind) =
   | `Unknown -> "`Unknown"
   | `UnknownDir -> "`UnknownDir"
 
-
 type Ldp_types.error +=
   | Not_a_container of path
   | Invalid_dirname of string
@@ -67,47 +66,9 @@ type Ldp_types.error +=
 let acl_suffix = ",acl"
 let meta_suffix = ",meta"
 
-let is_file fname =
-  let%lwt r =
-    match%lwt Lwt_unix.stat fname with
-    | exception _ -> Lwt.return_none
-    | { Unix.st_kind = Unix.S_REG } -> Lwt.return_some true
-    | { Unix.st_kind = Unix.S_DIR } -> Lwt.return_some false
-    | _ -> Lwt.return_none
-  in
-  let%lwt () = Server_log._debug_lwt
-    (fun m -> m "%s is_file: %s"
-       fname (match r with None -> "NONE" | Some true -> "true" | Some false -> "false")
-    )
-  in
-  Lwt.return r
-
 let ends_with_dirsep str =
   let len = String.length str in
   len > 0 && Filename.check_suffix str Filename.dir_sep
-
-let get_kind fname =
-  if Filename.check_suffix fname acl_suffix then
-    let nosuf = Filename.chop_suffix fname acl_suffix in
-    match%lwt is_file nosuf with
-      None when ends_with_dirsep nosuf -> Lwt.return (`Acl `UnknownDir)
-    | None -> Lwt.return (`Acl `Unknown)
-    | Some true -> Lwt.return (`Acl `File)
-    | Some false -> Lwt.return (`Acl `Dir)
-  else
-    if Filename.check_suffix fname meta_suffix then
-      let nosuf = Filename.chop_suffix fname meta_suffix in
-      match%lwt is_file nosuf with
-        None when ends_with_dirsep nosuf -> Lwt.return (`Meta `UnknownDir)
-      | None -> Lwt.return (`Meta `Unknown)
-      | Some true -> Lwt.return (`Meta `File)
-      | Some false -> Lwt.return (`Meta `Dir)
-    else
-      match%lwt is_file fname with
-        None when ends_with_dirsep fname -> Lwt.return `UnknownDir
-      | None -> Lwt.return `Unknown
-      | Some true -> Lwt.return `File
-      | Some false -> Lwt.return `Dir
 
 let debug_p p =
   Server_log._debug_lwt
@@ -115,44 +76,100 @@ let debug_p p =
       (Iri.to_string p.root_iri) p.root_dir
       (List.fold_left Filename.concat "/" p.rel))
 
-let mk_path root_iri root_dir rel =
-  let%lwt () = Server_log._debug_lwt
-    (fun f -> f "mk_path: root_iri=%S, root_dir=%s, rel=%S"
-       (Iri.to_string root_iri) root_dir (String.concat "|" rel)
-     )
-  in
-  let%lwt kind =
-    let fname = List.fold_left Filename.concat root_dir rel in
-    get_kind fname
-  in
-  let%lwt () = Server_log._debug_lwt
-    (fun f -> f "kind = %s" (string_of_kind kind))
-  in
-  let rel =
-    let chop_ext =
-      match kind with
-        `Acl _ -> Some acl_suffix
-      | `Meta _ -> Some meta_suffix
-      | _ -> None
+module type P =
+  sig
+    val is_file : string -> bool option Lwt.t
+  end
+
+module Unix_fs =
+  struct
+    let is_file fname =
+      let%lwt r =
+        match%lwt Lwt_unix.stat fname with
+        | exception _ -> Lwt.return_none
+      | { Unix.st_kind = Unix.S_REG } -> Lwt.return_some true
+        | { Unix.st_kind = Unix.S_DIR } -> Lwt.return_some false
+        | _ -> Lwt.return_none
+      in
+    let%lwt () = Server_log._debug_lwt
+      (fun m -> m "%s is_file: %s"
+         fname (match r with None -> "NONE" | Some true -> "true" | Some false -> "false")
+      )
     in
-    match chop_ext with
-      None -> rel
-    | Some ext ->
-        match List.rev rel with
-          [] -> assert false
-        | h :: q ->
-            match Filename.chop_suffix h ext with
-            | "" -> List.rev q
+    Lwt.return r
+  end
+
+module M (P:P) =
+  struct
+    let get_kind ~root_dir ~rel =
+      let fname = List.fold_left Filename.concat root_dir rel in
+      if Filename.check_suffix fname acl_suffix then
+        let nosuf = Filename.chop_suffix fname acl_suffix in
+        match%lwt P.is_file nosuf with
+        | None when ends_with_dirsep nosuf -> Lwt.return (`Acl `UnknownDir)
+        | None -> Lwt.return (`Acl `Unknown)
+        | Some true -> Lwt.return (`Acl `File)
+        | Some false -> Lwt.return (`Acl `Dir)
+      else
+        if Filename.check_suffix fname meta_suffix then
+          let nosuf = Filename.chop_suffix fname meta_suffix in
+          match%lwt P.is_file nosuf with
+          | None when ends_with_dirsep nosuf -> Lwt.return (`Meta `UnknownDir)
+          | None -> Lwt.return (`Meta `Unknown)
+          | Some true -> Lwt.return (`Meta `File)
+          | Some false -> Lwt.return (`Meta `Dir)
+        else
+          match%lwt P.is_file fname with
+          | None when ends_with_dirsep fname -> Lwt.return `UnknownDir
+          | None -> Lwt.return `Unknown
+          | Some true -> Lwt.return `File
+          | Some false -> Lwt.return `Dir
+
+
+    let mk_path root_iri root_dir rel =
+      let%lwt () = Server_log._debug_lwt
+        (fun f -> f "mk_path: root_iri=%S, root_dir=%s, rel=%S"
+           (Iri.to_string root_iri) root_dir (String.concat "|" rel)
+        )
+      in
+      let%lwt kind = get_kind ~root_dir ~rel in
+      let%lwt () = Server_log._debug_lwt
+        (fun f -> f "kind = %s" (string_of_kind kind))
+      in
+      let rel =
+        let chop_ext =
+          match kind with
+            `Acl _ -> Some acl_suffix
+          | `Meta _ -> Some meta_suffix
+          | _ -> None
+        in
+        match chop_ext with
+          None -> rel
+        | Some ext ->
+            match List.rev rel with
+              [] -> assert false
+            | h :: q ->
+                match Filename.chop_suffix h ext with
+                | "" -> List.rev q
             | str -> List.rev (str :: q)
-  in
-  let p = { root_iri ; root_dir ; rel ; kind ; mime = None } in
-  let%lwt () = debug_p p in
-  Lwt.return p
+      in
+      let p = { root_iri ; root_dir ; rel ; kind ; mime = None } in
+      let%lwt () = debug_p p in
+      Lwt.return p
+  end
+
+module Unix = M (Unix_fs)
+
+let fs_types = ref SMap.empty
+let register_fs_type fs_type name = fs_types := SMap.add name fs fs_types
+
+let () = register_fs_type (val Unix_fs) "unix"
 
 let path_of_uri uri =
   match Server_fs_route.route (Ocf.get Server_conf.storage_root) uri with
   | None -> Ldp_types.fail (Missing_route uri)
-  | Some (root_iri_path, root_dir, rel, ro, git) ->
+  | Some (root_iri_path, root_dir, rel, ro, fs_type) ->
+      create parameters for M from fs_types
       let root_iri =
         Iri.iri ?scheme:(Uri.scheme uri)
           ?user:(Uri.user uri)
@@ -160,7 +177,7 @@ let path_of_uri uri =
           ?port:(Uri.port uri)
           ~path:(Iri.Absolute root_iri_path) ()
       in
-      let%lwt p = mk_path root_iri root_dir rel in
+      let%lwt p = Unix.mk_path root_iri root_dir rel in
       Lwt.return (p, ro, git)
 
 let append_rel p strings = mk_path p.root_iri p.root_dir (p.rel @ strings)
@@ -292,9 +309,11 @@ let read_graph base filename =
 let read_path_graph p =
   read_graph (iri p) (path_to_filename p)
 
+let lookup_path_mime p = lookup_mime (path_to_filename path)
+
 let path_mime p =
   match p.mime with
-    Some _ -> Lwt.return p.mime
+    Some m -> Lwt.return m
   | None ->
       let meta = meta_path p in
       let%lwt mime =
@@ -310,11 +329,15 @@ let path_mime p =
       in
       let mime =
         match mime with
-          None -> lookup_mime (path_to_filename p)
+          None -> lookup_path_mime p
         | Some m -> m
       in
       p.mime <- Some mime;
-      Lwt.return_some mime
+      Lwt.return mime
+
+let reader_of_path p =
+  let absfile = path_to_filename p in
+  Lwt_io.(with_file ~mode:Input absfile read)
 
 (*
 let iri_parent_path =

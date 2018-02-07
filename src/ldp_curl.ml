@@ -57,9 +57,9 @@ module Make (P:P) : Ldp_http.Requests =
 
     include Ldp_cookies.Make ()
 
-    module IO = String_io_lwt
+    module IO = Cohttp_lwt__String_io
     module Response = Cohttp.Response.Make (IO)
-    module Body = Cohttp_lwt_body
+    module Body = Cohttp_lwt.Body
 
     open Lwt.Infix
 
@@ -107,7 +107,7 @@ module Make (P:P) : Ldp_http.Requests =
           begin
             let%lwt(resp, _) = read_response
               ~closefn: (fun () -> Curl.cleanup conn)
-                (Cohttp.String_io.open_in str)
+                (Cohttp__String_io.open_in str)
                 ()
                 meth
             in
@@ -202,7 +202,7 @@ module Make (P:P) : Ldp_http.Requests =
                 2 ->
                   read_response
                     ~closefn: (fun () -> Curl.cleanup conn)
-                    (Cohttp.String_io.open_in str)
+                    (Cohttp__String_io.open_in str)
                     ()
                     meth
               | _ ->

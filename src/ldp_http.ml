@@ -108,7 +108,7 @@ let string_of_metadata m =
   do_opt (p "meta.websocket=%s\n") (map_opt Iri.to_string m.websocket);
   Buffer.contents b
 
-let response_metadata iri ((resp, body): Response.t * Cohttp_lwt_body.t) =
+let response_metadata iri ((resp, body): Response.t * Cohttp_lwt.Body.t) =
   let header = resp.Response.headers in
   let links =
     match Header.get header "Link" with
@@ -147,8 +147,8 @@ let response_metadata iri ((resp, body): Response.t * Cohttp_lwt_body.t) =
 module type Requests =
   sig
     val dbg : string -> unit Lwt.t
-    val call : ?body: Cohttp_lwt_body.t -> ?chunked: bool ->
-      ?headers: Header.t -> Code.meth -> Iri.t -> (Response.t * Cohttp_lwt_body.t) Lwt.t
+    val call : ?body: Cohttp_lwt.Body.t -> ?chunked: bool ->
+      ?headers: Header.t -> Code.meth -> Iri.t -> (Response.t * Cohttp_lwt.Body.t) Lwt.t
   end
 
 module type Http =
@@ -207,7 +207,7 @@ module type Cache =
     val clear : unit -> unit Lwt.t
     val get :
       (?headers: Header.t -> Iri.t ->
-       (Response.t * Cohttp_lwt_body.t) Lwt.t) ->
+       (Response.t * Cohttp_lwt.Body.t) Lwt.t) ->
         ?headers:Header.t -> Iri.t -> (Response.t * string) Lwt.t
   end
 
@@ -225,13 +225,13 @@ module Make_cache (I:Cache_impl) : Cache =
     let empty_headers = Header.init ()
 
     let clear = I.clear
-    let get (call_get : ?headers: Header.t -> Iri.t -> (Response.t * Cohttp_lwt_body.t) Lwt.t)
+    let get (call_get : ?headers: Header.t -> Iri.t -> (Response.t * Cohttp_lwt.Body.t) Lwt.t)
       ?(headers=empty_headers) iri =
       let headers_nocookie = Header.remove headers "cookie" in
       match I.key headers_nocookie iri with
         None ->
           let%lwt (resp, body) = call_get ~headers iri in
-          let%lwt body = Cohttp_lwt_body.to_string body in
+          let%lwt body = Cohttp_lwt.Body.to_string body in
           Lwt.return (resp, body)
       | Some key ->
           match%lwt I.find key with
@@ -239,7 +239,7 @@ module Make_cache (I:Cache_impl) : Cache =
               Lwt.return (Marshal.from_string marshalled 0)
           | None ->
               let%lwt (resp, body) = call_get ~headers iri in
-              let%lwt body = Cohttp_lwt_body.to_string body in
+              let%lwt body = Cohttp_lwt.Body.to_string body in
               match (Code.code_of_status resp.Response.status) / 100 with
               | 2 ->
                   let marshalled = Marshal.to_string (resp, body) [] in
@@ -337,7 +337,7 @@ module Cached_http (C:Cache) (P:Requests) =
       | mime when parse &&
           (mime = mime_turtle || mime = mime_xmlrdf) ->
           let meta = response_metadata iri
-            (resp, Cohttp_lwt_body.of_string body)
+            (resp, Cohttp_lwt.Body.of_string body)
           in
           let src = (ct, body) in
           let g = Rdf_graph.open_graph iri in

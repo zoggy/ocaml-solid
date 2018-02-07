@@ -57,6 +57,9 @@ class r user path git hash master =
       | `Blob body -> Wm.continue (`String body) rd
       | `Tree -> Wm.continue (`String "Tree") rd
 
+TODO: abstraire l'accès aux fichiers dans server_fs et utiliser
+des foncteurs dans server_fs et serveur_acl pour les utiliser
+ici et dans server_webmachine
   end
 
 let r user path =

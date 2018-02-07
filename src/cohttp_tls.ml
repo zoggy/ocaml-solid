@@ -28,7 +28,7 @@ open Lwt.Infix
 
 module IO =
   struct
-    module CD = Cohttp_lwt_unix_debug
+    module CD = Cohttp_lwt_unix.Debug
     let () =
       if Sys.os_type <> "Win32" then
         Sys.(set_signal sigpipe Signal_ignore);
@@ -55,7 +55,7 @@ module IO =
                   >>= fun () ->  Lwt.return x
       else
         Lwt_io.read_line_opt ic
-    
+
     let read ic count =
       let count = min count Sys.max_string_length in
       if CD.debug_active () then
@@ -65,7 +65,7 @@ module IO =
               >>= fun () -> return buf
       else
         Lwt_io.read ~count ic
-    
+
     let write oc buf =
       if CD.debug_active () then (
          Log.debug (fun f -> f  ">>> %s" (String.trim buf)) >>= fun () ->
@@ -77,7 +77,7 @@ module IO =
 
     let flush oc =
       Lwt_io.flush oc
-    
+
 end
 
 module Request = struct
@@ -101,7 +101,7 @@ module Server = struct
       let init' ?backlog ?stop ?timeout tls sa callback =
         sa
           |> Conduit_lwt_server.listen ?backlog
-          |> Conduit_lwt_server.init ?stop (fun (fd, _) ->
+          >>= Conduit_lwt_server.init ?stop (fun (fd, _) ->
              Lwt.try_bind
                (fun () -> Tls_lwt.Unix.server_of_fd tls fd)
                (fun t ->

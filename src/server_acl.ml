@@ -71,53 +71,59 @@ let rights ~default user g iri =
   in
   Lwt.return (List.fold_left (gather_rights g user) Rdf_webacl.no_right auths)
 
-let rights_for_path user p =
-  let rec iter ~default p =
-    let acl = Server_fs.acl_path p in
-    match%lwt Server_fs.read_path_graph acl with
-    | Some g ->
-        begin
-          let r = rights ~default user g (Server_fs.iri p) in
-          match Server_fs.kind p with
-            `Acl x ->
-              (* add control if control right is provided on x *)
-              let p2 = Server_fs.noext_path p in
-              let%lwt r2 = rights ~default user g (Server_fs.iri p2) in
-              if Rdf_webacl.has_control r2 then
-                Lwt.return Rdf_webacl.all_rights
-              else
-                r
-          | _ ->
-              r
-        end
-    | None ->
-        match%lwt Server_fs.parent p with
-          None -> Server_log._err
-            (fun m -> m "No root acl in %s" (Server_fs.path_to_filename p));
-            Lwt.return Rdf_webacl.no_right
-        | Some parent -> iter ~default: true parent
-  in
-  iter ~default: false p
+module type P =
+  sig
+    val read_path_graph : Server_fs.path -> Rdf_graph.graph option Lwt.t
+    val parent : Server_fs.path -> Server_fs.path option
+    val append_rel : Server_fs.path -> string list -> Server_fs.path Lwt.t
+    val path_mime : Server_fs.path -> string
+  end
 
-let fold_listings user path acc basename =
-  let%lwt p = Server_fs.append_rel path [basename] in
-  match Server_fs.kind p with
-    `File ->
-      begin
-        let%lwt rights = rights_for_path user p in
-        if Rdf_webacl.has_read rights then
-          let absfile = Server_fs.path_to_filename p in
-          let%lwt mime =
-            match%lwt Server_fs.path_mime p with
-            | Some x -> Lwt.return x
-            | None -> Lwt.return (Server_fs.lookup_mime absfile)
-          in
-          let reader () = Lwt_io.(with_file ~mode:Input absfile read) in
-          Lwt.return ((mime, reader)::acc)
-        else
-          Lwt.return acc
-      end
-  | _  -> Lwt.return acc
+module M (P:P) =
+  struct
+    let rights_for_path user p =
+      let rec iter ~default p =
+        let acl = Server_fs.acl_path p in
+        match%lwt P.read_path_graph acl with
+        | Some g ->
+            begin
+              let r = rights ~default user g (Server_fs.iri p) in
+              match Server_fs.kind p with
+                `Acl x ->
+                  (* add control if control right is provided on x *)
+                  let p2 = Server_fs.noext_path p in
+                  let%lwt r2 = rights ~default user g (Server_fs.iri p2) in
+                  if Rdf_webacl.has_control r2 then
+                    Lwt.return Rdf_webacl.all_rights
+                  else
+                    r
+              | _ ->
+                  r
+            end
+        | None ->
+            match%lwt P.parent p with
+              None -> Server_log._err
+                (fun m -> m "No root acl in %s" (Server_fs.path_to_filename p));
+                Lwt.return Rdf_webacl.no_right
+            | Some parent -> iter ~default: true parent
+      in
+      iter ~default: false p
+
+    let fold_listings user path acc basename =
+      let%lwt p = P.append_rel path [basename] in
+      match Server_fs.kind p with
+        `File ->
+          begin
+            let%lwt rights = rights_for_path user p in
+            if Rdf_webacl.has_read rights then
+              let%lwt mime = P.path_mime p in
+              let reader () = P.reader_of_path p in
+              Lwt.return ((mime, reader)::acc)
+            else
+              Lwt.return acc
+          end
+      | _  -> Lwt.return acc
+  end
 
 let available_container_listings user path =
   match Server_fs.kind path with

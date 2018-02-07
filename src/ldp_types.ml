@@ -35,7 +35,7 @@ type meta =
     websocket: Iri.t option ;
     editable : Code.meth list ;
     exists: bool ;
-    info: Response.t * Cohttp_lwt_body.t ;
+    info: Response.t * Cohttp_lwt.Body.t ;
   }
 
 type rdf_resource =

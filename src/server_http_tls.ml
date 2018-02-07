@@ -31,7 +31,7 @@ let iri_subject_alt_names cert =
     (fun acc -> function
        | `URI str -> (Iri.of_string str) :: acc
        | _ -> acc
-    ) [] (X509.subject_alt_names cert)
+    ) [] (X509.Extension.subject_alt_names cert)
 
 let get_cert_info cert =
   Printf.sprintf "Subject Alternative Name (IRI): %s"
