@@ -71,20 +71,18 @@ let rights ~default user g iri =
   in
   Lwt.return (List.fold_left (gather_rights g user) Rdf_webacl.no_right auths)
 
-module type P =
+module type Acl =
   sig
-    val read_path_graph : Server_fs.path -> Rdf_graph.graph option Lwt.t
-    val parent : Server_fs.path -> Server_fs.path option
-    val append_rel : Server_fs.path -> string list -> Server_fs.path Lwt.t
-    val path_mime : Server_fs.path -> string
+    val rights_for_path : Iri.t option -> Server_fs.path -> Rdf_webacl.rights Lwt.t
+    val available_container_listings : Iri.t option -> Server_fs.path ->
+      (string * (unit -> string Lwt.t)) list Lwt.t
   end
-
-module M (P:P) =
+module Make (Fs:Server_fs.Fs) : Acl =
   struct
     let rights_for_path user p =
       let rec iter ~default p =
         let acl = Server_fs.acl_path p in
-        match%lwt P.read_path_graph acl with
+        match%lwt Fs.read_path_graph acl with
         | Some g ->
             begin
               let r = rights ~default user g (Server_fs.iri p) in
@@ -101,44 +99,45 @@ module M (P:P) =
                   r
             end
         | None ->
-            match%lwt P.parent p with
+            match%lwt Fs.parent p with
               None -> Server_log._err
-                (fun m -> m "No root acl in %s" (Server_fs.path_to_filename p));
+                (fun m -> m "No root acl in %s" (Fs.path_to_filename p));
                 Lwt.return Rdf_webacl.no_right
             | Some parent -> iter ~default: true parent
       in
       iter ~default: false p
 
     let fold_listings user path acc basename =
-      let%lwt p = P.append_rel path [basename] in
+      let%lwt p = Fs.append_rel path [basename] in
       match Server_fs.kind p with
         `File ->
           begin
             let%lwt rights = rights_for_path user p in
             if Rdf_webacl.has_read rights then
-              let%lwt mime = P.path_mime p in
-              let reader () = P.reader_of_path p in
+              let%lwt mime = Fs.path_mime p in
+              let reader () = Fs.string_of_path p in
               Lwt.return ((mime, reader)::acc)
             else
               Lwt.return acc
           end
       | _  -> Lwt.return acc
+
+    let available_container_listings user path =
+      match Server_fs.kind path with
+      | `Dir ->
+          begin
+            match Ocf.get Server_conf.container_listing with
+              None -> Lwt.return []
+            | Some files ->
+                let%lwt l = Lwt_list.fold_left_s
+                  (fold_listings user path) [] files
+                in
+                let can_read p = rights_for_path user p >|= Rdf_webacl.has_read in
+                let l = l @ [Ldp_http.mime_xhtml,
+                    fun () -> Fs.default_container_listing path can_read]
+            in
+                Lwt.return l
+          end
+      | _ -> Lwt.return []
   end
 
-let available_container_listings user path =
-  match Server_fs.kind path with
-  | `Dir ->
-      begin
-        match Ocf.get Server_conf.container_listing with
-          None -> Lwt.return []
-        | Some files ->
-            let%lwt l = Lwt_list.fold_left_s
-              (fold_listings user path) [] files
-            in
-            let can_read p = rights_for_path user p >|= Rdf_webacl.has_read in
-            let l = l @ [Ldp_http.mime_xhtml,
-              fun () -> Server_fs.default_container_listing path can_read]
-            in
-            Lwt.return l
-      end
-  | _ -> Lwt.return []

@@ -53,12 +53,18 @@ let storage_root = Ocf.option filename_wrapper
   ~doc:"root directory to store served documents"
   "www"
 
+let json_wrapper =
+  let to_json ?with_doc x = x in
+  let from_json ?def x = x in
+  Ocf.Wrapper.make to_json from_json
+
+let default_fs_type = "unix"
 type fs_map_rule = {
     host : string option [@ocf Ocf.Wrapper.(option string), None] ;
     path : string option [@ocf Ocf.Wrapper.(option string), None] ;
     root : string [@ocf Ocf.Wrapper.string, ""] ;
-    read_only : bool [@ocf Ocf.Wrapper.bool, false] ;
-    git : bool [@ocf Ocf.Wrapper.bool, false] ;
+    options : Yojson.Safe.json [@ocf json_wrapper, `Assoc []] ;
+    fs_type : string [@ocf Ocf.Wrapper.string, default_fs_type] ;
   } [@@ocf]
 
 let storage_rules = Ocf.list fs_map_rule_wrapper

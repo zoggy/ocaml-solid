@@ -54,8 +54,8 @@ let get_group g id =
 type rule =
   { host : Re.re option ;
     path : Re.re option ;
-    read_only : bool ;
-    git : bool ;
+    options : Yojson.Safe.json ;
+    fs_type : string ;
     root : string ;
   }
 
@@ -168,7 +168,7 @@ let try_rule root uri r =
             (fun f -> f "Route: root_iri_path=%S\nroot_dir=%S\nrel=%S"
                (String.concat "|" root_iri_path) root_dir
                  (String.concat "|" rel));
-          Some (root_iri_path, root_dir, rel, r.read_only, r.git)
+          Some (root_iri_path, root_dir, rel, r.fs_type, r.options)
 
 let route root uri =
   match !rules with
@@ -180,7 +180,7 @@ let route root uri =
       let path = List.map Uri.pct_decode path in
       let path = normalize path in
       match rules with
-      | [] ->  Some ([], root, path, false, false)
+      | [] ->  Some ([], root, path, Server_conf.default_fs_type, `Assoc [])
       | rules ->
           let path = List.map Uri.pct_encode path in
           let path = "/"^(String.concat "/" path) in
@@ -201,8 +201,8 @@ let init l =
          host = map (fun x -> Re.compile (Re_pcre.re x)) r.Server_conf.host ;
          path = map (fun x -> Re.compile (Re_pcre.re x)) r.Server_conf.path ;
          root = r.Server_conf.root ;
-         read_only = r.Server_conf.read_only ;
-         git = r.Server_conf.git ;
+         options = r.Server_conf.options ;
+         fs_type = r.Server_conf.fs_type ;
        })
     l
   in

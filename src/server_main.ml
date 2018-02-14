@@ -112,6 +112,7 @@ let () =
         | Unix.Unix_error (e,s1,s2) ->
             Printf.sprintf "%s %s: %s"
               (Unix.error_message e) s2 s1
+        | Ocf.Error e -> Ocf.string_of_error e
         | e ->
             Printexc.to_string e
       in

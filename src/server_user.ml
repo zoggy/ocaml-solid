@@ -88,9 +88,18 @@ let profile_templates iri =
     [%blob "user_templates/profile/card,acl"] ;
   ]
 
+let options =
+  try Server_fs.options_of_json (`Assoc [])
+  with Ocf.Error e ->
+    prerr_endline (Ocf.string_of_error e);
+    exit 1
+module Options = (val options)
+module Unix = Server_fs.Make_unix(Options)
+module Fs = Server_fs.Make_fs(Unix)(Options)
+
 let mk_root_acl root_path webid =
   let%lwt () = Server_log._debug_lwt
-    (fun m -> m "preparing root acl graph for %s" (Server_fs.path_to_filename root_path))
+    (fun m -> m "preparing root acl graph for %s" (Fs.path_to_filename root_path))
   in
   let acl_path = Server_fs.acl_path root_path in
   let g = open_graph (Server_fs.iri acl_path) in
@@ -106,13 +115,13 @@ let mk_root_acl root_path webid =
     acl_mode, [ Iri acl_c_Control ; Iri acl_c_Read ; Iri acl_c_Write ] ;
   ] ;
   let%lwt () = Server_log._debug_lwt
-    (fun m -> m "creating acl file %s" (Server_fs.path_to_filename acl_path))
+    (fun m -> m "creating acl file %s" (Fs.path_to_filename acl_path))
   in
-  if%lwt Server_fs.store_path_graph acl_path g then
+  if%lwt Fs.store_path_graph acl_path g then
     Lwt.return_unit
   else
     Server_log._err_lwt
-      (fun f -> f "Could not create %s" (Server_fs.path_to_filename acl_path))
+      (fun f -> f "Could not create %s" (Fs.path_to_filename acl_path))
 
 let mk_templates root_path ~name ~cert_label ~vars ~profile webid =
   let templates = templates root_path in
@@ -131,7 +140,7 @@ let mk_templates root_path ~name ~cert_label ~vars ~profile webid =
   let%lwt () = Server_log._debug_lwt (fun f -> f "%s" "after replace_var") in
   let mk (uri, mime, template) =
     let content = List.fold_left replace_var template vars in
-    let%lwt (path,_ro,_git) = Server_fs.path_of_uri (Uri.of_string uri) in
+    let%lwt (path,(module T)) = Server_fs.path_of_uri (Uri.of_string uri) in
     let%lwt () =
       match mime with
       Some s when s = Ldp_http.mime_turtle ->
@@ -145,11 +154,11 @@ let mk_templates root_path ~name ~cert_label ~vars ~profile webid =
           end
       | _ -> Lwt.return_unit
     in
-    match%lwt Server_fs.put_file path ?mime
+    match%lwt Fs.put_file path ?mime
       (fun oc -> Lwt_io.write oc content)
     with
       false -> Server_log._err_lwt
-        (fun f -> f "Could not create %s" (Server_fs.path_to_filename path))
+        (fun f -> f "Could not create %s" (Fs.path_to_filename path))
     | true -> Lwt.return_unit
   in
   Lwt_list.iter_s mk templates
@@ -205,13 +214,13 @@ let add ?webid ?(name="User name") ?(cert_label=name) ?cert ~profile root_uri =
           None -> Lwt.fail_with "No webid in PEM file"
         | Some id -> Lwt.return (id, vars)
   in
-  let%lwt (root_path,_ro,_git) = Server_fs.path_of_uri (Uri.of_string root_uri) in
-  let root_dir = Server_fs.path_to_filename root_path in
+  let%lwt (root_path,(module T)) = Server_fs.path_of_uri (Uri.of_string root_uri) in
+  let root_dir = Fs.path_to_filename root_path in
   if Sys.file_exists root_dir then
     Lwt.fail_with (Printf.sprintf "Directory %s exists" root_dir)
   else
     let g = open_graph Server_fs.(iri (meta_path root_path)) in
-    if%lwt Server_fs.post_mkdir root_path g then
+    if%lwt Fs.post_mkdir root_path g then
       let%lwt () = mk_root_acl root_path webid in
       mk_templates (Iri.to_uri (Server_fs.iri root_path))
         ~name ~cert_label ~vars ~profile webid

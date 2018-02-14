@@ -26,17 +26,17 @@ let http_handler ?user request body =
     | exception e ->
         let%lwt () = log (fun f -> f "%s" (Printexc.to_string e)) in
         Lwt.return []
-    | (path, _, true) ->
-        let%lwt r = Server_git.r user path in
-        Lwt.return [ "*", fun () -> r]
-    | (path,read_only,_) ->
+    | (path, (module T)) ->
         let%lwt () =
           log (fun f ->
              f "Iri: %s\nFilename: %s"
                (Iri.to_string (Server_fs.iri path))
-               (Server_fs.path_to_filename path))
+               (T.Fs.path_to_filename path))
         in
-        Lwt.return [ "*", fun () -> new Server_webmachine.r met ~read_only user path ]
+        let module Acl = Server_acl.Make(T.Fs_acl) in
+        let module W = Server_webmachine.Make(T.Fs)(Acl) in
+        Lwt.return [ "*", fun () -> 
+            new W.r met ~read_only: T.Options.read_only user path ]
   in
   let open Cohttp in
   Server_webmachine.Wm.dispatch' routes ~body ~request
