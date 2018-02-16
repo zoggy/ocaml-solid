@@ -94,11 +94,22 @@ let main () =
           let%lwt () = Server_log._app_lwt
             (fun m -> m "Using documents from %s" (Ocf.get Server_conf.storage_root))
           in
-          let%lwt () = Server_log._app_lwt
-            (fun m -> m "Starting HTTPS server on port %d"
-               (Ocf.get Server_conf.port))
-          in
-          Server_http_tls.server Server_handler.http_handler
+          match Server_conf.(Ocf.get https, Ocf.get http) with
+            Some (https:Server_conf.https), _ ->
+              let%lwt () = Server_log._app_lwt
+                (fun m -> m "Starting HTTPS server on port %d"
+                   https.port)
+              in
+              Server_http_tls.server https Server_handler.http_handler
+          | None, Some (http:Server_conf.http) ->
+              let%lwt () = Server_log._app_lwt
+                (fun m -> m "Starting HTTP server on port %d"
+                   http.port)
+              in
+              Server_http.server http Server_handler.http_handler
+          | None, None ->
+              Lwt.fail_with
+                "Configuration does not contain https nor http section"
 
 let () =
   Logs.set_reporter (Server_log.lwt_reporter ());

@@ -1,6 +1,13 @@
 (** *)
 
+module Server_fs =
+  struct
+    include Server_fs
+    let safe_unlink _ = Lwt.return_unit
+  end
+
 let exec com =
+  let%lwt () = Lwt_io.(write_line stderr com) in
   match%lwt Lwt_process.(exec (shell com)) with
     Unix.WEXITED 0 -> Lwt.return_unit
   | _ -> Lwt.fail_with (Printf.sprintf "Command failed: %s" com)

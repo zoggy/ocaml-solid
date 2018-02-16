@@ -86,7 +86,10 @@ let iri_of_cert cert =
     (function `URI _ -> true | _ -> false)
     (X509.Extension.subject_alt_names cert)
   with
-  | exception Not_found -> None
+  | exception Not_found -> 
+      Server_log._debug
+        (fun f -> f "No URI in cert");
+      None
   | `URI str -> Some (Iri.of_string str)
   | _ -> assert false
 
@@ -119,6 +122,9 @@ let user_of_cert cert =
   match iri_of_cert cert with
     None -> Lwt.return_none
   | Some webid ->
+      let%lwt () = Server_log._debug_lwt
+        (fun f -> f "client claims webid %S" (Iri.to_string webid))
+      in
       match X509.public_key cert with
       | `RSA { Nocrypto.Rsa.e ; n} ->
           begin

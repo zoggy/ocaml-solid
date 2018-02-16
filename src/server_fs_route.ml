@@ -102,16 +102,6 @@ let apply_groups g str =
   in
   Re.replace ~all: true re_repl_group ~f str
 
-let split_string ?(keep_empty=false) s chars =
-  let re =
-    Re.(
-     let re = alt (List.map char chars) in
-     let re = if keep_empty then re else rep1 re in
-     compile re
-    )
-  in
-  Re.split re s
-
 let split_path =
   let re = Re.(compile (rep1 (char '/'))) in
   fun s ->

@@ -67,7 +67,7 @@ module Make (O:Options) (R:Ref) : Server_fs.P =
 
     let to_file = function
     | "" -> Lwt.return []
-    | s -> Lwt.return (Server_fs_route.split_string s ['/'])
+    | s -> Lwt.return (Server_misc.split_string s ['/'])
 
     let file_exists file =
       let%lwt file = to_file file in

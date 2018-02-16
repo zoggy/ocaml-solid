@@ -24,16 +24,43 @@
 
 (** Server configuration options. *)
 
-let server_cert = Ocf.string ~doc:".pem file of server certificate"
-  "./server-certificates/server.pem"
+type https = {
+    (* ".pem file of server certificate" *)
+    server_cert : string
+      [@ocf Ocf.Wrapper.string, "./server-certificates/server.pem"]
+      [@ocf.label "cert_file"] ;
 
-let server_key = Ocf.string ~doc:".key file of server key"
-  ("./server-certificates/server.key")
+    (* ".key file of server key" *)
+    server_key : string
+      [@ocf Ocf.Wrapper.string, "./server-certificates/server.key"]
+      [@ocf.label "key_file"] ;
 
-let server_ca = Ocf.(option_ ~doc:"CA file of server"
-   Wrapper.string None)
+    (* "CA file of server" *)
+    server_ca : string option
+      [@ocf Ocf.Wrapper.(option string), None]
+      [@ocf.label "ca_file"] ;
 
-let port = Ocf.int ~doc: "port number to listen to" 9999
+    (* "port number to listen to" *)
+    port : int [@ocf Ocf.Wrapper.int, 9999] ;
+  } [@@ocf]
+
+let https = Ocf.option (Ocf.Wrapper.option https_wrapper) None
+
+type http = {
+    (* "hostname; use '0.0.0.0' to reply to request adressed
+       to any hostname" *)
+    host : string [@ocf Ocf.Wrapper.string, "localhost"] ;
+
+    (* "port number to listen to" *)
+    port : int [@ocf Ocf.Wrapper.int, 9999] ;
+
+    (* "HTTP header used to pass client certificate" *)
+    client_cert_header : string
+      [@ocf Ocf.Wrapper.string, "X-SSL-Cert"] ;
+
+  } [@@ocf]
+
+let http = Ocf.option (Ocf.Wrapper.option http_wrapper) None
 
 let filename_wrapper =
   let to_json ?with_doc fn = `String fn in
@@ -85,14 +112,6 @@ let container_listing = Ocf.(option_
   )
 
 let add_options g =
-  let https =
-    let g = Ocf.group in
-    let g = Ocf.add g ["cert_file"] server_cert in
-    let g = Ocf.add g ["key_file"] server_key in
-    let g = Ocf.add g ["ca_file"] server_ca in
-    let g = Ocf.add g ["port"] port in
-    g
-  in
   let storage =
     let g = Ocf.group in
     let g = Ocf.add g ["root"] storage_root in
@@ -111,7 +130,8 @@ let add_options g =
     let g = Ocf.add g ["server"] Server_log.log_level in
     g
   in
-  let g = Ocf.add_group g ["https"] https in
+  let g = Ocf.add g ["https"] https in
+  let g = Ocf.add g ["http"] http in
   let g = Ocf.add_group g ["storage"] storage in
   let g = Ocf.add_group g ["ldp"] ldp in
   let g = Ocf.add_group g ["log"] log in

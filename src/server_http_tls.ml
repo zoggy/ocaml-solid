@@ -47,15 +47,16 @@ let get_cert_info cert =
 
 (* FIXME: add user authentication with cookies here *)
 
-let server http_handler =
+let server conf http_handler =
+  let open Server_conf in
   let%lwt cert =
     X509_lwt.private_of_pems
-      ~cert:(Ocf.get Server_conf.server_cert)
-      ~priv_key:(Ocf.get Server_conf.server_key)
+      ~cert:conf.server_cert
+      ~priv_key:conf.server_key
   in
   let%lwt authenticator =
     X509_lwt.authenticator
-     (match Ocf.get Server_conf.server_ca with
+     (match conf.server_ca with
          None -> `No_authentication_I'M_STUPID
        | Some file -> `Ca_file file)
   in
@@ -109,6 +110,7 @@ let server http_handler =
      `No_password,
      `Port 9999)
   in*)
-  Server.create (*~mode*) ~port: (Ocf.get Server_conf.port)
-  tls_server (Server.make ~callback())
+  Server.create (*~mode*)
+    ~port: conf.port
+    tls_server (Server.make ~callback())
 
