@@ -1,3 +1,5 @@
+Development has moved to https://framagit.org/zoggy/ocaml-solid
+
 # ocaml-solid
 Library to build LDP and SOLID applications https://github.com/solid,
 runnable either on your machine (using packages solid.tls or solid.curl)
